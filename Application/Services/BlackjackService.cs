@@ -21,7 +21,13 @@ public class BlackjackService : IBlackjackService
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
         if ((DateTimeOffset.UtcNow - player.LastHourly).TotalHours < 1)
-            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло");
+        {
+            // Высчитываем, когда можно будет взять бонус
+            var nextAvailable = player.LastHourly.AddHours(1);
+
+            // Передаем это время в Failure
+            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, nextAvailable));
+        }
 
         player.Balance += 1000;
         player.LastHourly = DateTimeOffset.UtcNow;

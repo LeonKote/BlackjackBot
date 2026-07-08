@@ -2,17 +2,16 @@
 using NetCord;
 using NetCord.Rest;
 
-namespace BlackjackBot.Discord;
+namespace BlackjackBot.Discord.Services;
 
 public static class DiscordMapper
 {
-    public static InteractionMessageProperties ToDiscordMessage(this GameState game)
+    public static EmbedProperties BuildEmbed(GameState game)
     {
-        // NetCord использует EmbedFieldProperties вместо AddField
         var fields = new List<EmbedFieldProperties>
-            {
-                new() { Name = $"Ваша рука ({game.PlayerScore})", Value = string.Join(" ", game.PlayerHand), Inline = true }
-            };
+        {
+            new() { Name = $"Ваша рука ({game.PlayerScore})", Value = string.Join(" ", game.PlayerHand), Inline = true }
+        };
 
         Color color;
         string description;
@@ -22,8 +21,8 @@ public static class DiscordMapper
             int visibleScore = GameState.CalculateScore([game.DealerHand[0]]);
             fields.Add(new() { Name = $"Рука дилера ({visibleScore})", Value = $"{game.DealerHand[0]} ❓", Inline = true });
 
-            color = new Color(0x3498db); // Синий
-            description = $"**Ставка:** {game.Bet}";
+            color = new Color(0x87CEFA);
+            description = $"👤 **Игрок:** <@{game.UserId}>\n💰 **Ставка:** {game.Bet}";
         }
         else
         {
@@ -41,36 +40,25 @@ public static class DiscordMapper
             };
 
             color = game.Status is GameStatus.PlayerWin or GameStatus.DealerBust or GameStatus.BlackjackWin
-                ? new Color(0x2ecc71) : (game.Status == GameStatus.Push ? new Color(0xf39c12) : new Color(0xe74c3c));
+                ? new Color(0x98FB98) : (game.Status == GameStatus.Push ? new Color(0xFFE4B5) : new Color(0xFFB6C1));
 
-            description = $"**Ставка:** {game.Bet}\n\n**Результат:** {result}";
+            description = $"👤 **Игрок:** <@{game.UserId}>\n💰 **Ставка:** {game.Bet}\n\n**Результат:** {result}";
         }
 
-        // В NetCord мы собираем Embed через инициализатор свойств
-        var embed = new EmbedProperties
-        {
-            Title = "🃏 Блекджек",
-            Description = description,
-            Color = color,
-            Fields = fields
-        };
+        return new EmbedProperties { Title = "🃏 Блекджек", Description = description, Color = color, Fields = fields };
+    }
 
-        var msg = new InteractionMessageProperties
-        {
-            Embeds = [embed]
-        };
-
-        // Добавление компонентов также происходит через коллекции, а не AddComponents
+    public static List<ActionRowProperties> BuildComponents(GameState game)
+    {
         if (game.Status == GameStatus.Active)
         {
-            msg.Components = [
+            return [
                 new ActionRowProperties([
-                        new ButtonProperties($"bj_hit:{game.UserId}", "Взять", ButtonStyle.Primary),
-                        new ButtonProperties($"bj_stand:{game.UserId}", "Хватит", ButtonStyle.Secondary)
-                    ])
+                    new ButtonProperties($"bj_hit:{game.UserId}", "Взять", ButtonStyle.Primary),
+                    new ButtonProperties($"bj_stand:{game.UserId}", "Хватит", ButtonStyle.Secondary)
+                ])
             ];
         }
-
-        return msg;
+        return [];
     }
 }

@@ -1,9 +1,10 @@
 ﻿using BlackjackBot.Application.Interfaces;
+using BlackjackBot.Discord.Services;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 
-namespace BlackjackBot.Discord;
+namespace BlackjackBot.Discord.Modules;
 
 public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 {
@@ -46,6 +47,11 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
                 new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
             return;
         }
-        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(result.Value!.ToDiscordMessage()));
+        var game = result.Value!;
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildEmbed(game)],
+            Components = DiscordMapper.BuildComponents(game)
+        }));
     }
 }

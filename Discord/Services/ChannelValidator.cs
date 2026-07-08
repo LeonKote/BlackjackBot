@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 
-namespace BlackjackBot.Discord;
+namespace BlackjackBot.Discord.Services;
 
 public class ChannelValidator
 {

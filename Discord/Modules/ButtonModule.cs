@@ -1,11 +1,12 @@
 ﻿using BlackjackBot.Application.Interfaces;
 using BlackjackBot.Application.Services;
+using BlackjackBot.Discord.Services;
 using BlackjackBot.Domain.Entities;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ComponentInteractions;
 
-namespace BlackjackBot.Discord;
+namespace BlackjackBot.Discord.Modules;
 
 public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
 {
@@ -42,9 +43,9 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     private Task SendErrorAsync(string msg) => Context.Interaction.SendResponseAsync(InteractionCallback.Message(
         new InteractionMessageProperties { Content = $"❌ {msg}", Flags = MessageFlags.Ephemeral }));
 
-    private Task UpdateMessageAsync(GameState game) => Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => {
-        var ui = game.ToDiscordMessage();
-        msg.Embeds = ui.Embeds;
-        msg.Components = ui.Components;
+    private Task UpdateMessageAsync(GameState game) => Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+    {
+        msg.Embeds = [DiscordMapper.BuildEmbed(game)];
+        msg.Components = DiscordMapper.BuildComponents(game);
     }));
 }
