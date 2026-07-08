@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>BlackjackBot.Discord</RootNamespace>
+    <AssemblyName>BlackjackBot.Discord</AssemblyName>
   </PropertyGroup>
 
 </Project>

@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>BlackjackBot.Infrastructure</RootNamespace>
+    <AssemblyName>BlackjackBot.Infrastructure</AssemblyName>
   </PropertyGroup>
 
 </Project>

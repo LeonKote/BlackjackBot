@@ -1,4 +1,4 @@
-﻿namespace Application;
+﻿namespace BlackjackBot.Application;
 
 public class Class1
 {

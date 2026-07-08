@@ -1,4 +1,4 @@
-﻿namespace Infrastructure;
+﻿namespace BlackjackBot.Infrastructure;
 
 public class Class1
 {
