@@ -3,19 +3,22 @@
 public class GameState
 {
     public ulong UserId { get; }
-    public int Bet { get; }
-    public List<Card> PlayerHand { get; set; } = [];
-    public List<Card> DealerHand { get; set; } = [];
     public Deck Deck { get; set; } = new();
-    public GameStatus Status { get; set; } = GameStatus.Active;
+    public List<Card> DealerHand { get; set; } = [];
 
-    public int PlayerScore => CalculateScore(PlayerHand);
+    // Поддержка нескольких рук для Сплита
+    public List<Hand> Hands { get; set; } = [];
+    public int CurrentHandIndex { get; set; } = 0;
+
+    public Hand CurrentHand => Hands[CurrentHandIndex];
+    public bool IsGameOver { get; set; } = false;
+
     public int DealerScore => CalculateScore(DealerHand);
 
-    public GameState(ulong userId, int bet)
+    public GameState(ulong userId, int initialBet)
     {
         UserId = userId;
-        Bet = bet;
+        Hands.Add(new Hand { Bet = initialBet });
     }
 
     public static int CalculateScore(IEnumerable<Card> hand)

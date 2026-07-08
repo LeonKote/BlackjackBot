@@ -5,8 +5,10 @@ namespace BlackjackBot.Application.Interfaces;
 
 public interface IBlackjackService
 {
-    public Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimHourlyAsync(ulong userId);
-    public Task<Result<GameState>> StartGameAsync(ulong userId, int bet);
-    public Task<Result<GameState>> HitAsync(ulong userId);
-    public Task<Result<GameState>> StandAsync(ulong userId);
+    Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimHourlyAsync(ulong userId);
+    Task<Result<GameState>> StartGameAsync(ulong userId, int bet);
+    Task<Result<GameState>> HitAsync(ulong userId);
+    Task<Result<GameState>> StandAsync(ulong userId);
+    Task<Result<GameState>> DoubleDownAsync(ulong userId); // <-- Дабл
+    Task<Result<GameState>> SplitAsync(ulong userId);      // <-- Сплит
 }

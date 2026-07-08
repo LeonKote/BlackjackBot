@@ -40,6 +40,28 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
         if (result.IsSuccess) await UpdateMessageAsync(result.Value!);
     }
 
+    [ComponentInteraction("bj_double")]
+    public async Task DoubleAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.DoubleDownAsync(userId);
+        if (result.IsSuccess) await UpdateMessageAsync(result.Value!);
+        else await SendErrorAsync(result.Error);
+    }
+
+    [ComponentInteraction("bj_split")]
+    public async Task SplitAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.SplitAsync(userId);
+        if (result.IsSuccess) await UpdateMessageAsync(result.Value!);
+        else await SendErrorAsync(result.Error);
+    }
+
     private Task SendErrorAsync(string msg) => Context.Interaction.SendResponseAsync(InteractionCallback.Message(
         new InteractionMessageProperties { Content = $"❌ {msg}", Flags = MessageFlags.Ephemeral }));
 
