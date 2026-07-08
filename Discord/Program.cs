@@ -1,5 +1,6 @@
 ﻿using BlackjackBot.Application.Interfaces;
 using BlackjackBot.Application.Services;
+using BlackjackBot.Discord;
 using BlackjackBot.Domain.Interfaces;
 using BlackjackBot.Infrastructure.Data;
 using BlackjackBot.Infrastructure.Repositories;
@@ -25,6 +26,7 @@ builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
 // Регистрация Приложения
 builder.Services.AddSingleton<IGameSessionManager, GameSessionManager>();
 builder.Services.AddSingleton<IBlackjackService, BlackjackService>();
+builder.Services.AddSingleton<ChannelValidator>();
 
 // Регистрация Представления (Discord)
 builder.Services

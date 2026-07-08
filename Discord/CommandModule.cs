@@ -1,5 +1,4 @@
 ﻿using BlackjackBot.Application.Interfaces;
-using BlackjackBot.Application.Services;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
@@ -9,26 +8,27 @@ namespace BlackjackBot.Discord;
 public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 {
     private readonly IBlackjackService _blackjackService;
+    private readonly ChannelValidator _channelValidator;
 
-    public CommandModule(IBlackjackService blackjackService)
+    public CommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator)
     {
-        _blackjackService = blackjackService;
+        this._blackjackService = blackjackService;
+        this._channelValidator = channelValidator;
     }
 
     [SlashCommand("hourly", "Получить ежечасный бонус")]
     public async Task HourlyAsync()
     {
+        // Проверка канала
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
         var result = await _blackjackService.ClaimHourlyAsync(Context.User.Id);
         string response = result.IsSuccess
             ? $"✅ Вы получили **1000** монет! Ваш баланс: **{result.Value.Balance}**"
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
-        // Инициализируем свойства
         var messageProps = new InteractionMessageProperties { Content = response };
-
-        // Задаем Ephemeral только если это ошибка (результат неудачен)
-        if (!result.IsSuccess)
-            messageProps.Flags = MessageFlags.Ephemeral;
+        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral;
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(messageProps));
     }
@@ -36,6 +36,9 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
     [SlashCommand("bj", "Сыграть в блекджек")]
     public async Task BlackjackAsync(int bet)
     {
+        // Проверка канала
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
         var result = await _blackjackService.StartGameAsync(Context.User.Id, bet);
         if (!result.IsSuccess)
         {
