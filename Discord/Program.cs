@@ -1,6 +1,5 @@
 ﻿using BlackjackBot.Application.Interfaces;
 using BlackjackBot.Application.Services;
-using BlackjackBot.Discord.Handlers;
 using BlackjackBot.Discord.Services;
 using BlackjackBot.Domain.Interfaces;
 using BlackjackBot.Infrastructure.Data;
@@ -41,8 +40,6 @@ builder.Services
     .AddCommands<CommandContext>()
     .AddApplicationCommands<SlashCommandInteraction, SlashCommandContext>()
     .AddComponentInteractions<ButtonInteraction, ButtonInteractionContext>();
-
-builder.Services.AddHostedService<TextCommandHandler>();
 
 var host = builder.Build();
 
