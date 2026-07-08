@@ -1,5 +1,6 @@
 ﻿using BlackjackBot.Application.Interfaces;
 using BlackjackBot.Discord.Services;
+using BlackjackBot.Domain.Interfaces;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.Commands;
@@ -10,11 +11,26 @@ public class TextCommandModule : CommandModule<CommandContext>
 {
     private readonly IBlackjackService _blackjackService;
     private readonly ChannelValidator _channelValidator;
+    private readonly IPlayerRepository _playerRepo;
 
-    public TextCommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator)
+    public TextCommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator, IPlayerRepository playerRepo)
     {
         _blackjackService = blackjackService;
         _channelValidator = channelValidator;
+        _playerRepo = playerRepo;
+    }
+
+    [Command("profile", "stats")]
+    public async Task ProfileAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var player = await _playerRepo.GetOrCreateAsync(Context.Message.Author.Id);
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildProfileEmbed(Context.Message.Author, player)],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
     }
 
     [Command("hourly")]
@@ -23,11 +39,11 @@ public class TextCommandModule : CommandModule<CommandContext>
         if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
 
         var result = await _blackjackService.ClaimHourlyAsync(Context.Message.Author.Id);
+
         string response = result.IsSuccess
-            ? $"✅ Вы получили **1000** монет! Ваш баланс: **{result.Value.Balance}**"
+            ? $"<@{Context.Message.Author.Id}> наклянчил косарь нищук"
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
-        // Ответ с упоминанием сообщения игрока (ReplyToMessageId)
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
         {
             Content = response,
@@ -50,6 +66,7 @@ public class TextCommandModule : CommandModule<CommandContext>
         var game = result.Value!;
         var reply = new MessageProperties
         {
+            Content = $"<@{Context.Message.Author.Id}>", // Пинг вне embed-а
             Embeds = [DiscordMapper.BuildEmbed(game)],
             Components = DiscordMapper.BuildComponents(game),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)

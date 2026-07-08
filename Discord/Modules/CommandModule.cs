@@ -1,5 +1,6 @@
 ﻿using BlackjackBot.Application.Interfaces;
 using BlackjackBot.Discord.Services;
+using BlackjackBot.Domain.Interfaces;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
@@ -10,26 +11,40 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 {
     private readonly IBlackjackService _blackjackService;
     private readonly ChannelValidator _channelValidator;
+    private readonly IPlayerRepository _playerRepo; // Добавляем репозиторий
 
-    public CommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator)
+    public CommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator, IPlayerRepository playerRepo)
     {
-        this._blackjackService = blackjackService;
-        this._channelValidator = channelValidator;
+        _blackjackService = blackjackService;
+        _channelValidator = channelValidator;
+        _playerRepo = playerRepo;
+    }
+
+    [SlashCommand("profile", "Профиль и статистика игрока")]
+    public async Task ProfileAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var player = await _playerRepo.GetOrCreateAsync(Context.User.Id);
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildProfileEmbed(Context.User, player)]
+        }));
     }
 
     [SlashCommand("hourly", "Получить ежечасный бонус")]
     public async Task HourlyAsync()
     {
-        // Проверка канала
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
 
         var result = await _blackjackService.ClaimHourlyAsync(Context.User.Id);
+
         string response = result.IsSuccess
-            ? $"✅ Вы получили **1000** монет! Ваш баланс: **{result.Value.Balance}**"
+            ? $"<@{Context.User.Id}> наклянчил косарь нищук"
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
         var messageProps = new InteractionMessageProperties { Content = response };
-        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral;
+        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral; // Делаем скрытым только если кулдаун
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(messageProps));
     }
@@ -37,7 +52,6 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
     [SlashCommand("bj", "Сыграть в блекджек")]
     public async Task BlackjackAsync(int bet)
     {
-        // Проверка канала
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
 
         var result = await _blackjackService.StartGameAsync(Context.User.Id, bet);
@@ -50,6 +64,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         var game = result.Value!;
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
         {
+            Content = $"<@{Context.User.Id}>", // Пинг игрока текстом вне embed-а
             Embeds = [DiscordMapper.BuildEmbed(game)],
             Components = DiscordMapper.BuildComponents(game)
         }));

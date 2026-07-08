@@ -44,8 +44,7 @@ public class BlackjackService : IBlackjackService
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
-        player.Balance -= bet; // Вычитаем ставку
-        await _playerRepo.UpdateAsync(player);
+        player.Balance -= bet;
 
         var game = new GameState(userId, bet);
         game.PlayerHand.Add(game.Deck.Draw());
@@ -53,15 +52,20 @@ public class BlackjackService : IBlackjackService
         game.PlayerHand.Add(game.Deck.Draw());
         game.DealerHand.Add(game.Deck.Draw());
 
+        // Моментальный исход при раздаче
         if (game.PlayerScore == 21 || game.DealerScore == 21)
         {
-            if (game.PlayerScore == 21 && game.DealerScore == 21) { game.Status = GameStatus.Push; player.Balance += bet; }
-            else if (game.PlayerScore == 21) { game.Status = GameStatus.BlackjackWin; player.Balance += (int)(bet * 2.5); }
-            else game.Status = GameStatus.DealerWin;
+            player.GamesPlayed++;
+
+            if (game.PlayerScore == 21 && game.DealerScore == 21) { game.Status = GameStatus.Push; player.Balance += bet; player.Draws++; }
+            else if (game.PlayerScore == 21) { game.Status = GameStatus.BlackjackWin; player.Balance += (int)(bet * 2.5); player.Wins++; player.Blackjacks++; }
+            else { game.Status = GameStatus.DealerWin; player.Losses++; }
+
             await _playerRepo.UpdateAsync(player);
-            return Result<GameState>.Success(game); // Моментальный исход
+            return Result<GameState>.Success(game);
         }
 
+        await _playerRepo.UpdateAsync(player); // Сохраняем списание баланса
         _sessionManager.AddGame(game);
         return Result<GameState>.Success(game);
     }
@@ -77,6 +81,12 @@ public class BlackjackService : IBlackjackService
         {
             game.Status = GameStatus.PlayerBust;
             _sessionManager.RemoveGame(userId);
+
+            var player = await _playerRepo.GetOrCreateAsync(userId);
+            player.GamesPlayed++;
+            player.Losses++;
+            await _playerRepo.UpdateAsync(player);
+
             return Result<GameState>.Success(game);
         }
         if (game.PlayerScore == 21) return await StandAsync(userId);
@@ -98,6 +108,9 @@ public class BlackjackService : IBlackjackService
 
         _sessionManager.RemoveGame(userId);
 
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        player.GamesPlayed++;
+
         int payout = game.Status switch
         {
             GameStatus.DealerBust or GameStatus.PlayerWin => game.Bet * 2,
@@ -105,12 +118,15 @@ public class BlackjackService : IBlackjackService
             _ => 0
         };
 
+        // Начисляем статистику
+        if (game.Status == GameStatus.Push) player.Draws++;
+        else if (payout > 0) player.Wins++;
+        else player.Losses++;
+
         if (payout > 0)
-        {
-            var player = await _playerRepo.GetOrCreateAsync(userId);
             player.Balance += payout;
-            await _playerRepo.UpdateAsync(player);
-        }
+
+        await _playerRepo.UpdateAsync(player);
 
         return Result<GameState>.Success(game);
     }

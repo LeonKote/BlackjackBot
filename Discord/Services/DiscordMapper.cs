@@ -22,7 +22,8 @@ public static class DiscordMapper
             fields.Add(new() { Name = $"Рука дилера ({visibleScore})", Value = $"{game.DealerHand[0]} ❓", Inline = true });
 
             color = new Color(0x87CEFA);
-            description = $"👤 **Игрок:** <@{game.UserId}>\n💰 **Ставка:** {game.Bet}";
+            // Убрали упоминание игрока отсюда
+            description = $"💰 **Ставка:** {game.Bet}";
         }
         else
         {
@@ -42,10 +43,33 @@ public static class DiscordMapper
             color = game.Status is GameStatus.PlayerWin or GameStatus.DealerBust or GameStatus.BlackjackWin
                 ? new Color(0x98FB98) : (game.Status == GameStatus.Push ? new Color(0xFFE4B5) : new Color(0xFFB6C1));
 
-            description = $"👤 **Игрок:** <@{game.UserId}>\n💰 **Ставка:** {game.Bet}\n\n**Результат:** {result}";
+            // И отсюда убрали
+            description = $"💰 **Ставка:** {game.Bet}\n\n**Результат:** {result}";
         }
 
         return new EmbedProperties { Title = "🃏 Блекджек", Description = description, Color = color, Fields = fields };
+    }
+
+    // НОВЫЙ МЕТОД: Оформление профиля игрока
+    public static EmbedProperties BuildProfileEmbed(User user, Player player)
+    {
+        int winrate = player.GamesPlayed > 0 ? (int)Math.Round((double)player.Wins / player.GamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"📊 Профиль {user.Username}",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0x9B59B6),
+            Fields = [
+                new() { Name = "💰 Баланс", Value = $"{player.Balance} монет", Inline = false },
+                new() { Name = "🎮 Сыграно", Value = player.GamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед", Value = player.Wins.ToString(), Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{winrate}%", Inline = true },
+                new() { Name = "💀 Поражений", Value = player.Losses.ToString(), Inline = true },
+                new() { Name = "🤝 Ничьих", Value = player.Draws.ToString(), Inline = true },
+                new() { Name = "🃏 Блекджеков", Value = player.Blackjacks.ToString(), Inline = true }
+            ]
+        };
     }
 
     public static List<ActionRowProperties> BuildComponents(GameState game)
