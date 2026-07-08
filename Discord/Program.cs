@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NetCord;
+using NetCord.Gateway;
 using NetCord.Hosting.Gateway;
 using NetCord.Hosting.Services;
 using NetCord.Hosting.Services.ApplicationCommands;
@@ -33,7 +34,10 @@ builder.Services.AddSingleton<ChannelValidator>();
 
 // Регистрация Представления (Discord)
 builder.Services
-    .AddDiscordGateway()
+     .AddDiscordGateway(options =>
+     {
+         options.Intents = GatewayIntents.GuildMessages | GatewayIntents.DirectMessages | GatewayIntents.MessageContent;
+     })
     .AddCommands<CommandContext>()
     .AddApplicationCommands<SlashCommandInteraction, SlashCommandContext>()
     .AddComponentInteractions<ButtonInteraction, ButtonInteractionContext>();
