@@ -11,13 +11,39 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 {
     private readonly IBlackjackService _blackjackService;
     private readonly ChannelValidator _channelValidator;
-    private readonly IPlayerRepository _playerRepo; // Добавляем репозиторий
+    private readonly IPlayerRepository _playerRepo;
+    private readonly IGameSessionManager _sessionManager; // <-- Добавили менеджер сессий
 
-    public CommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator, IPlayerRepository playerRepo)
+    public CommandModule(
+        IBlackjackService blackjackService,
+        ChannelValidator channelValidator,
+        IPlayerRepository playerRepo,
+        IGameSessionManager sessionManager)
     {
         _blackjackService = blackjackService;
         _channelValidator = channelValidator;
         _playerRepo = playerRepo;
+        _sessionManager = sessionManager;
+    }
+
+    [SlashCommand("recover", "Восстановить игру, если сообщение удалилось")]
+    public async Task RecoverAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        if (!_sessionManager.TryGetGame(Context.User.Id, out var game) || game is null)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = "❌ У вас нет активной игры в данный момент.", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Content = $"<@{Context.User.Id}> (Игра восстановлена)",
+            Embeds = [DiscordMapper.BuildEmbed(game)],
+            Components = DiscordMapper.BuildComponents(game)
+        }));
     }
 
     [SlashCommand("profile", "Профиль и статистика игрока")]
@@ -44,7 +70,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
         var messageProps = new InteractionMessageProperties { Content = response };
-        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral; // Делаем скрытым только если кулдаун
+        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral;
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(messageProps));
     }
@@ -64,7 +90,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         var game = result.Value!;
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
         {
-            Content = $"<@{Context.User.Id}>", // Пинг игрока текстом вне embed-а
+            Content = $"<@{Context.User.Id}>",
             Embeds = [DiscordMapper.BuildEmbed(game)],
             Components = DiscordMapper.BuildComponents(game)
         }));

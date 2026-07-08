@@ -12,12 +12,46 @@ public class TextCommandModule : CommandModule<CommandContext>
     private readonly IBlackjackService _blackjackService;
     private readonly ChannelValidator _channelValidator;
     private readonly IPlayerRepository _playerRepo;
+    private readonly IGameSessionManager _sessionManager; // <-- Добавили менеджер сессий
 
-    public TextCommandModule(IBlackjackService blackjackService, ChannelValidator channelValidator, IPlayerRepository playerRepo)
+    public TextCommandModule(
+        IBlackjackService blackjackService,
+        ChannelValidator channelValidator,
+        IPlayerRepository playerRepo,
+        IGameSessionManager sessionManager)
     {
         _blackjackService = blackjackService;
         _channelValidator = channelValidator;
         _playerRepo = playerRepo;
+        _sessionManager = sessionManager;
+    }
+
+    [Command("recover")]
+    public async Task RecoverAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        // Проверяем, есть ли активная игра
+        if (!_sessionManager.TryGetGame(Context.Message.Author.Id, out var game) || game is null)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+            {
+                Content = "❌ У вас нет активной игры в данный момент.",
+                MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+            });
+            return;
+        }
+
+        // Отправляем текущее состояние игры заново
+        var reply = new MessageProperties
+        {
+            Content = $"<@{Context.Message.Author.Id}> (Игра восстановлена)",
+            Embeds = [DiscordMapper.BuildEmbed(game)],
+            Components = DiscordMapper.BuildComponents(game),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        };
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
     }
 
     [Command("profile", "stats")]
@@ -66,7 +100,7 @@ public class TextCommandModule : CommandModule<CommandContext>
         var game = result.Value!;
         var reply = new MessageProperties
         {
-            Content = $"<@{Context.Message.Author.Id}>", // Пинг вне embed-а
+            Content = $"<@{Context.Message.Author.Id}>",
             Embeds = [DiscordMapper.BuildEmbed(game)],
             Components = DiscordMapper.BuildComponents(game),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
