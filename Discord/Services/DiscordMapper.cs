@@ -51,12 +51,11 @@ public static class DiscordMapper
 
         Color color = new Color(0x87CEFA);
         int totalBet = game.Hands.Sum(h => h.Bet);
-        string description = $"💰 **Общая ставка:** {totalBet}";
+        string description = $"💰 **Общая ставка:** {totalBet}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
 
-        // Отрисовка общих результатов в конце
         if (game.IsGameOver)
         {
-            int totalPayout = game.Hands.Sum(h => h.Status switch {
+            int totalPayout = game.Hands.Sum(h => h.Status switch { /* ... (тут ваш код выплат) */
                 GameStatus.DealerBust or GameStatus.PlayerWin => h.Bet * 2,
                 GameStatus.BlackjackWin => (int)(h.Bet * 2.5),
                 GameStatus.Push => h.Bet,
@@ -69,7 +68,7 @@ public static class DiscordMapper
             string result = netProfit > 0 ? $"Вы выиграли **{totalPayout}** монет!" :
                             (netProfit == 0 ? "Ничья! Ставки возвращены." : "Вы проиграли свои ставки.");
 
-            description += $"\n\n**Результат:** {result}";
+            description += $"\n\n**Результат:** {result}\n🆔 **ID Игры:** `{game.Id}`\n*(Для проверки: `/proof {game.Id}`)*";
         }
 
         return new EmbedProperties { Title = "🃏 Блекджек", Description = description, Color = color, Fields = fields };
@@ -119,5 +118,30 @@ public static class DiscordMapper
             buttons.Add(new ButtonProperties($"bj_split:{game.UserId}", "Сплит", ButtonStyle.Danger));
 
         return [new ActionRowProperties(buttons)];
+    }
+
+    public static EmbedProperties BuildProofEmbed(GameHistory history)
+    {
+        return new EmbedProperties
+        {
+            Title = $"⚖️ Проверка честности (ID: {history.Id})",
+            Color = new Color(0x3498DB),
+            Description = $"""
+            **Server Seed:** ||`{history.ServerSeed}`||
+            **Server Seed Hash:** `{history.ServerSeedHash}`
+            **Client Seed:** `{history.ClientSeed}`
+            **Game ID:** `{history.Id}`
+            
+            **Как алгоритм тасует колоду?**
+            1. Изначально берется 52 карты (от Двоек до Тузов по порядку: ♥️, ♦️, ♣️, ♠️).
+            2. Для каждой карты (индекс от 0 до 51) вычисляется **SHA256-хеш** от строки:
+            `ServerSeed:ClientSeed:GameID:Index`
+            *(Пример для первой карты: `{history.ServerSeed}:{history.ClientSeed}:{history.Id}:0`)*
+            3. 52 карты сортируются по полученным хешам в алфавитном порядке (от меньшего к большему).
+            4. Карта с самым маленьким хешем сдается первой.
+
+            *Этот алгоритм гарантирует абсолютную случайность и исключает подкрутку. Вы можете легко повторить его сами на Python, C# или JS, чтобы сверить выданные вам карты!*
+            """
+        };
     }
 }

@@ -6,14 +6,13 @@ namespace BlackjackBot.Infrastructure.Data;
 public class AppDbContext : DbContext
 {
     public DbSet<Player> Players { get; set; }
+    public DbSet<GameHistory> GameHistories { get; set; } // Новая таблица
 
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-
-    }
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Player>().HasKey(p => p.Id); // Fluent API вместо атрибутов в Domain
+        modelBuilder.Entity<Player>().HasKey(p => p.Id);
+        modelBuilder.Entity<GameHistory>().HasKey(h => h.Id); // Ключ для истории
     }
 }

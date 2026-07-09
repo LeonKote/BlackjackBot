@@ -9,6 +9,10 @@ public interface IBlackjackService
     Task<Result<GameState>> StartGameAsync(ulong userId, int bet);
     Task<Result<GameState>> HitAsync(ulong userId);
     Task<Result<GameState>> StandAsync(ulong userId);
-    Task<Result<GameState>> DoubleDownAsync(ulong userId); // <-- Дабл
-    Task<Result<GameState>> SplitAsync(ulong userId);      // <-- Сплит
+    Task<Result<GameState>> DoubleDownAsync(ulong userId);
+    Task<Result<GameState>> SplitAsync(ulong userId);
+
+    // Новые методы
+    Task<Result> ChangeSeedAsync(ulong userId, string newSeed);
+    Task<Result<GameHistory>> GetGameProofAsync(long gameId); // ID теперь long
 }

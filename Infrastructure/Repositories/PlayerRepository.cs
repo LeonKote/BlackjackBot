@@ -7,16 +7,16 @@ namespace BlackjackBot.Infrastructure.Repositories;
 
 public class PlayerRepository : IPlayerRepository
 {
-    private readonly IDbContextFactory<AppDbContext> dbFactory;
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
 
     public PlayerRepository(IDbContextFactory<AppDbContext> dbFactory)
     {
-        this.dbFactory = dbFactory;
+        _dbFactory = dbFactory;
     }
 
     public async Task<Player> GetOrCreateAsync(ulong id)
     {
-        using var db = dbFactory.CreateDbContext();
+        using var db = _dbFactory.CreateDbContext();
         var player = await db.Players.FindAsync(id);
         if (player is null)
         {
@@ -29,7 +29,7 @@ public class PlayerRepository : IPlayerRepository
 
     public async Task UpdateAsync(Player player)
     {
-        using var db = dbFactory.CreateDbContext();
+        using var db = _dbFactory.CreateDbContext();
         db.Players.Update(player);
         await db.SaveChangesAsync();
     }

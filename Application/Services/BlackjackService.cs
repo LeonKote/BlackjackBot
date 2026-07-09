@@ -8,11 +8,13 @@ namespace BlackjackBot.Application.Services;
 public class BlackjackService : IBlackjackService
 {
     private readonly IPlayerRepository _playerRepo;
+    private readonly IGameHistoryRepository _historyRepo;
     private readonly IGameSessionManager _sessionManager;
 
-    public BlackjackService(IPlayerRepository playerRepo, IGameSessionManager sessionManager)
+    public BlackjackService(IPlayerRepository playerRepo, IGameHistoryRepository historyRepo, IGameSessionManager sessionManager)
     {
         _playerRepo = playerRepo;
+        _historyRepo = historyRepo;
         _sessionManager = sessionManager;
     }
 
@@ -34,18 +36,33 @@ public class BlackjackService : IBlackjackService
     public async Task<Result<GameState>> StartGameAsync(ulong userId, int bet)
     {
         if (bet < 50) return Result<GameState>.Failure("Минимальная ставка - 50 монет.");
-
-        var game = new GameState(userId, bet);
-        if (!_sessionManager.TryAddGame(game))
-            return Result<GameState>.Failure("Завершите текущую игру!");
-
         var player = await _playerRepo.GetOrCreateAsync(userId);
-        if (player.Balance < bet)
-        {
-            _sessionManager.RemoveGame(userId);
-            return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
-        }
+        if (player.Balance < bet) return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
+        string serverSeed = Guid.NewGuid().ToString("N");
+        string serverSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverSeed))).ToLower();
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        // 1. Создаем историю в БД, чтобы сгенерировался Game ID
+        var history = await _historyRepo.CreateAsync(new GameHistory
+        {
+            UserId = userId,
+            ServerSeed = serverSeed,
+            ClientSeed = player.ClientSeed,
+            ServerSeedHash = serverSeedHash,
+            IsCompleted = false
+        });
+
+        // 2. Создаем игру и генерируем колоду с использованием ID вместо Nonce
+        var game = new GameState(userId, bet, serverSeed, player.ClientSeed, history.Id)
+        {
+            Id = history.Id,
+            ServerSeed = serverSeed,
+            ServerSeedHash = serverSeedHash,
+            ClientSeed = player.ClientSeed
+        };
+
+        if (!_sessionManager.TryAddGame(game)) return Result<GameState>.Failure("Завершите текущую игру!");
         player.Balance -= bet;
 
         var hand = game.Hands[0];
@@ -65,6 +82,8 @@ public class BlackjackService : IBlackjackService
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveGame(userId);
+
+            await _historyRepo.UpdateToCompletedAsync(game.Id);
             return Result<GameState>.Success(game);
         }
 
@@ -222,6 +241,29 @@ public class BlackjackService : IBlackjackService
         await _playerRepo.UpdateAsync(player);
         _sessionManager.RemoveGame(game.UserId);
 
+        await _historyRepo.UpdateToCompletedAsync(game.Id); // <-- Важно! Разрешаем показывать ServerSeed
+
         return Result<GameState>.Success(game);
+    }
+
+    public async Task<Result> ChangeSeedAsync(ulong userId, string newSeed)
+    {
+        if (string.IsNullOrWhiteSpace(newSeed) || newSeed.Length > 20 || !newSeed.All(c => char.IsLetterOrDigit(c) || c == '_'))
+            return Result.Failure("Сид должен быть от 1 до 20 символов и содержать только буквы, цифры и _.");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        player.ClientSeed = newSeed;
+        await _playerRepo.UpdateAsync(player);
+
+        return Result.Success();
+    }
+
+    public async Task<Result<GameHistory>> GetGameProofAsync(long gameId)
+    {
+        var history = await _historyRepo.GetByIdAsync(gameId);
+        if (history is null) return Result<GameHistory>.Failure("Игра с таким ID не найдена.");
+        if (!history.IsCompleted) return Result<GameHistory>.Failure("Эта игра еще идет! Серверный сид будет раскрыт только после её завершения.");
+
+        return Result<GameHistory>.Success(history);
     }
 }

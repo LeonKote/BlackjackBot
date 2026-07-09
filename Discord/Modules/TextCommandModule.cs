@@ -108,4 +108,34 @@ public class TextCommandModule : CommandModule<CommandContext>
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
     }
+
+    [Command("seed")]
+    public async Task SeedAsync([CommandParameter(Remainder = true)] string newSeed)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.ChangeSeedAsync(Context.Message.Author.Id, newSeed);
+        string text = result.IsSuccess ? $"✅ Ваш Client Seed успешно изменен на `{newSeed}`." : $"❌ {result.Error}"; // Изменено тут
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = text, MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+    }
+
+    [Command("proof")]
+    public async Task ProofAsync(long gameId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.GetGameProofAsync(gameId);
+        if (!result.IsSuccess)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {result.Error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+            return;
+        }
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildProofEmbed(result.Value!)],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
 }

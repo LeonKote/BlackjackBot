@@ -95,4 +95,47 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Components = DiscordMapper.BuildComponents(game)
         }));
     }
+
+    [SlashCommand("seed", "Изменить свой Client Seed для проверки честности")]
+    public async Task SeedAsync(string newSeed)
+    {
+        // Проверка канала
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.ChangeSeedAsync(Context.User.Id, newSeed);
+
+        string text = result.IsSuccess
+            ? $"✅ Ваш Client Seed успешно изменен на `{newSeed}`."
+            : $"❌ {result.Error}";
+
+        var messageProps = new InteractionMessageProperties { Content = text };
+
+        // Ошибки выводим скрытым сообщением
+        if (!result.IsSuccess)
+            messageProps.Flags = MessageFlags.Ephemeral;
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(messageProps));
+    }
+
+    [SlashCommand("proof", "Проверить честность сыгранной игры по её ID")]
+    public async Task ProofAsync(long gameId)
+    {
+        // Проверка канала
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.GetGameProofAsync(gameId);
+
+        if (!result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        // Если игра найдена, выводим Embed с доказательством
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildProofEmbed(result.Value!)]
+        }));
+    }
 }

@@ -30,6 +30,7 @@ builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
 builder.Services.AddSingleton<IGameSessionManager, GameSessionManager>();
 builder.Services.AddSingleton<IBlackjackService, BlackjackService>();
 builder.Services.AddSingleton<ChannelValidator>();
+builder.Services.AddSingleton<IGameHistoryRepository, GameHistoryRepository>();
 
 // Регистрация Представления (Discord)
 builder.Services
