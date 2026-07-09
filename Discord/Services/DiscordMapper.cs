@@ -16,7 +16,6 @@ public static class DiscordMapper
             var hand = game.Hands[i];
             string handName = game.Hands.Count > 1 ? $"Ваша рука {i + 1}" : "Ваша рука";
 
-            // Если рук несколько и игра активна, помечаем текущую стрелочкой
             if (game.Hands.Count > 1 && i == game.CurrentHandIndex && !game.IsGameOver)
                 handName = "👉 " + handName;
 
@@ -51,11 +50,14 @@ public static class DiscordMapper
 
         Color color = new Color(0x87CEFA);
         int totalBet = game.Hands.Sum(h => h.Bet);
+
+        // Убрали ID отсюда
         string description = $"💰 **Общая ставка:** {totalBet}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
 
+        // Отрисовка общих результатов в конце
         if (game.IsGameOver)
         {
-            int totalPayout = game.Hands.Sum(h => h.Status switch { /* ... (тут ваш код выплат) */
+            int totalPayout = game.Hands.Sum(h => h.Status switch {
                 GameStatus.DealerBust or GameStatus.PlayerWin => h.Bet * 2,
                 GameStatus.BlackjackWin => (int)(h.Bet * 2.5),
                 GameStatus.Push => h.Bet,
@@ -68,10 +70,11 @@ public static class DiscordMapper
             string result = netProfit > 0 ? $"Вы выиграли **{totalPayout}** монет!" :
                             (netProfit == 0 ? "Ничья! Ставки возвращены." : "Вы проиграли свои ставки.");
 
-            description += $"\n\n**Результат:** {result}\n🆔 **ID Игры:** `{game.Id}`\n*(Для проверки: `/proof {game.Id}`)*";
+            description += $"\n\n**Результат:** {result}";
         }
 
-        return new EmbedProperties { Title = "🃏 Блекджек", Description = description, Color = color, Fields = fields };
+        // ВАЖНО: Добавили ID прямо в Title
+        return new EmbedProperties { Title = $"🃏 Блекджек (ID: {game.Id})", Description = description, Color = color, Fields = fields };
     }
 
     public static EmbedProperties BuildProfileEmbed(User user, Player player)
