@@ -160,4 +160,16 @@ public class TextCommandModule : CommandModule<CommandContext>
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
     }
+
+    [Command("help")]
+    public async Task HelpAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildHelpEmbed()],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
 }

@@ -88,6 +88,8 @@ public static class DiscordMapper
             Color = new Color(0x9B59B6),
             Fields = [
                 new() { Name = "💰 Баланс", Value = $"{player.Balance} монет", Inline = false },
+                new() { Name = "💵 Выиграно денег", Value = $"{player.TotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно денег", Value = $"{player.TotalMoneyLost:N0}", Inline = true },
                 new() { Name = "🎮 Сыграно", Value = player.GamesPlayed.ToString(), Inline = true },
                 new() { Name = "🏆 Побед", Value = player.Wins.ToString(), Inline = true },
                 new() { Name = "📈 Винрейт", Value = $"{winrate}%", Inline = true },
@@ -214,6 +216,31 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
             **Результат:** {resultStr}
             """
+        };
+    }
+
+    public static EmbedProperties BuildHelpEmbed()
+    {
+        return new EmbedProperties
+        {
+            Title = "🤖 Справка по боту",
+            Color = new Color(0xF1C40F),
+            Description = "Здесь собраны все доступные команды. Вы можете использовать как текстовые команды (начинаются с `!`), так и слэш-команды (`/`).",
+            Fields = [
+                new() { Name = "🎮 Игры", Value =
+                    "`!bj <ставка>` — Сыграть в Блекджек.\n" +
+                    "`!crash <ставка> <множитель>` — Сыграть в Краш (например: `!crash 1000 2.5`).",
+                    Inline = false },
+                new() { Name = "👤 Профиль и Экономика", Value =
+                    "`!profile` — Посмотреть свой баланс и статистику.\n" +
+                    "`!hourly` — Получить бесплатные монеты (раз в час).",
+                    Inline = false },
+                new() { Name = "🛡️ Честная игра (Provably Fair)", Value =
+                    "`!proof <ID>` — Проверить честность сыгранной игры по её ID.\n" +
+                    "`!seed <фраза>` — Задать свою фразу для генерации колоды/результата.\n" +
+                    "`!recover` — Выслать кнопки заново, если вы случайно удалили сообщение с активной игрой.",
+                    Inline = false }
+            ]
         };
     }
 }

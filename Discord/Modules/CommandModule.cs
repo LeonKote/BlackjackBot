@@ -158,4 +158,15 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildCrashEmbed(result.Value!)]
         }));
     }
+
+    [SlashCommand("help", "Показать список всех команд и правил")]
+    public async Task HelpAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildHelpEmbed()]
+        }));
+    }
 }

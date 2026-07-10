@@ -12,6 +12,9 @@ public class Player
     public int Draws { get; set; }
     public int Blackjacks { get; set; }
 
-    // Убрали Nonce
     public string ClientSeed { get; set; } = "default_seed";
+
+    // НОВЫЕ ПОЛЯ
+    public long TotalMoneyWon { get; set; }
+    public long TotalMoneyLost { get; set; }
 }

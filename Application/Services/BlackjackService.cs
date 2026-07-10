@@ -76,9 +76,26 @@ public class BlackjackService : IBlackjackService
             game.IsGameOver = true;
             player.GamesPlayed++;
 
-            if (hand.Score == 21 && game.DealerScore == 21) { hand.Status = GameStatus.Push; player.Balance += bet; player.Draws++; }
-            else if (hand.Score == 21) { hand.Status = GameStatus.BlackjackWin; player.Balance += (int)(bet * 2.5); player.Wins++; player.Blackjacks++; }
-            else { hand.Status = GameStatus.DealerWin; player.Losses++; }
+            if (hand.Score == 21 && game.DealerScore == 21)
+            {
+                hand.Status = GameStatus.Push;
+                player.Balance += bet;
+                player.Draws++;
+            }
+            else if (hand.Score == 21)
+            {
+                hand.Status = GameStatus.BlackjackWin;
+                player.Balance += (int)(bet * 2.5);
+                player.Wins++;
+                player.Blackjacks++;
+                player.TotalMoneyWon += (int)(bet * 1.5); // Чистая прибыль (2.5 - 1)
+            }
+            else
+            {
+                hand.Status = GameStatus.DealerWin;
+                player.Losses++;
+                player.TotalMoneyLost += bet; // Проигрыш ставки
+            }
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveGame(userId);
@@ -214,6 +231,7 @@ public class BlackjackService : IBlackjackService
             {
                 player.GamesPlayed++;
                 player.Losses++;
+                player.TotalMoneyLost += hand.Bet; // Добавили учет проигрыша при переборе
                 continue;
             }
 
@@ -231,9 +249,19 @@ public class BlackjackService : IBlackjackService
                 _ => 0
             };
 
+            int netProfit = payout - hand.Bet; // Считаем чистую прибыль или убыток
+
             if (hand.Status == GameStatus.Push) player.Draws++;
-            else if (payout > 0) player.Wins++;
-            else player.Losses++;
+            else if (payout > 0)
+            {
+                player.Wins++;
+                player.TotalMoneyWon += netProfit; // Учет чистой победы
+            }
+            else
+            {
+                player.Losses++;
+                player.TotalMoneyLost += hand.Bet; // Учет проигрыша
+            }
 
             player.Balance += payout;
         }
@@ -319,10 +347,12 @@ public class BlackjackService : IBlackjackService
         {
             player.Balance += game.Payout;
             player.Wins++;
+            player.TotalMoneyWon += (game.Payout - game.Bet); // Учет чистой прибыли
         }
         else
         {
             player.Losses++;
+            player.TotalMoneyLost += game.Bet; // Учет потери
         }
         player.GamesPlayed++;
 
