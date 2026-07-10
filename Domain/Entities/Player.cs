@@ -14,7 +14,10 @@ public class Player
 
     public string ClientSeed { get; set; } = "default_seed";
 
-    // НОВЫЕ ПОЛЯ
     public long TotalMoneyWon { get; set; }
     public long TotalMoneyLost { get; set; }
+
+    // НОВЫЕ ПОЛЯ: Заранее сгенерированный сид для следующей игры
+    public string NextServerSeed { get; set; } = "";
+    public string NextServerSeedHash { get; set; } = "";
 }

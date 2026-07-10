@@ -172,4 +172,18 @@ public class TextCommandModule : CommandModule<CommandContext>
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }
+
+    [Command("nextseed")]
+    public async Task NextSeedAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.GetNextSeedInfoAsync(Context.Message.Author.Id);
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildNextSeedEmbed(result.Value.ServerSeedHash, result.Value.ClientSeed)],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
 }

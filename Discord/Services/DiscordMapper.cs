@@ -243,4 +243,23 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
             ]
         };
     }
+
+    public static EmbedProperties BuildNextSeedEmbed(string serverSeedHash, string clientSeed)
+    {
+        return new EmbedProperties
+        {
+            Title = "🔒 Ваши сиды для следующей игры",
+            Color = new Color(0x3498DB),
+            Description = $"""
+            **Хеш следующего Server Seed:** 
+            `{serverSeedHash}`
+
+            **Ваш текущий Client Seed:** 
+            `{clientSeed}`
+
+            *Перед началом каждой игры сервер заранее генерирует сид и показывает вам его хеш (он написан выше).*
+            *После того как вы сыграете, вы сможете сверить, что сервер использовал именно этот сид, а не подменил его!*
+            """
+        };
+    }
 }

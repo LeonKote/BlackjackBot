@@ -39,21 +39,22 @@ public class BlackjackService : IBlackjackService
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
-        string serverSeed = Guid.NewGuid().ToString("N");
-        string serverSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverSeed))).ToLower();
+        // PROVABLY FAIR: Берем ЗАРАНЕЕ сгенерированный сид
+        EnsureNextSeedExists(player);
+        string serverSeed = player.NextServerSeed;
+        string serverSeedHash = player.NextServerSeedHash;
         if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
 
-        // 1. Создаем историю в БД, чтобы сгенерировался Game ID
         var history = await _historyRepo.CreateAsync(new GameHistory
         {
             UserId = userId,
             ServerSeed = serverSeed,
             ClientSeed = player.ClientSeed,
             ServerSeedHash = serverSeedHash,
-            IsCompleted = false
+            IsCompleted = false,
+            GameType = "Blackjack"
         });
 
-        // 2. Создаем игру и генерируем колоду с использованием ID вместо Nonce
         var game = new GameState(userId, bet, serverSeed, player.ClientSeed, history.Id)
         {
             Id = history.Id,
@@ -63,6 +64,11 @@ public class BlackjackService : IBlackjackService
         };
 
         if (!_sessionManager.TryAddGame(game)) return Result<GameState>.Failure("Завершите текущую игру!");
+
+        // ВАЖНО: Только после успешного старта генерируем новый сид для СЛЕДУЮЩЕЙ игры
+        player.NextServerSeed = Guid.NewGuid().ToString("N");
+        player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
+
         player.Balance -= bet;
 
         var hand = game.Hands[0];
@@ -76,30 +82,12 @@ public class BlackjackService : IBlackjackService
             game.IsGameOver = true;
             player.GamesPlayed++;
 
-            if (hand.Score == 21 && game.DealerScore == 21)
-            {
-                hand.Status = GameStatus.Push;
-                player.Balance += bet;
-                player.Draws++;
-            }
-            else if (hand.Score == 21)
-            {
-                hand.Status = GameStatus.BlackjackWin;
-                player.Balance += (int)(bet * 2.5);
-                player.Wins++;
-                player.Blackjacks++;
-                player.TotalMoneyWon += (int)(bet * 1.5); // Чистая прибыль (2.5 - 1)
-            }
-            else
-            {
-                hand.Status = GameStatus.DealerWin;
-                player.Losses++;
-                player.TotalMoneyLost += bet; // Проигрыш ставки
-            }
+            if (hand.Score == 21 && game.DealerScore == 21) { hand.Status = GameStatus.Push; player.Balance += bet; player.Draws++; }
+            else if (hand.Score == 21) { hand.Status = GameStatus.BlackjackWin; player.Balance += (int)(bet * 2.5); player.Wins++; player.Blackjacks++; player.TotalMoneyWon += (int)(bet * 1.5); }
+            else { hand.Status = GameStatus.DealerWin; player.Losses++; player.TotalMoneyLost += bet; }
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveGame(userId);
-
             await _historyRepo.UpdateToCompletedAsync(game.Id);
             return Result<GameState>.Success(game);
         }
@@ -303,8 +291,10 @@ public class BlackjackService : IBlackjackService
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<CrashGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
-        string serverSeed = Guid.NewGuid().ToString("N");
-        string serverSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverSeed))).ToLower();
+        // PROVABLY FAIR: Берем ЗАРАНЕЕ сгенерированный сид
+        EnsureNextSeedExists(player);
+        string serverSeed = player.NextServerSeed;
+        string serverSeedHash = player.NextServerSeedHash;
         if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
 
         var history = await _historyRepo.CreateAsync(new GameHistory
@@ -313,9 +303,13 @@ public class BlackjackService : IBlackjackService
             ServerSeed = serverSeed,
             ClientSeed = player.ClientSeed,
             ServerSeedHash = serverSeedHash,
-            IsCompleted = true, // Краш завершается моментально
-            GameType = "Crash" // <-- Указываем тип игры
+            IsCompleted = true,
+            GameType = "Crash"
         });
+
+        // Сразу генерируем новый сид для СЛЕДУЮЩЕЙ игры
+        player.NextServerSeed = Guid.NewGuid().ToString("N");
+        player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
 
         player.Balance -= bet;
 
@@ -358,5 +352,25 @@ public class BlackjackService : IBlackjackService
 
         await _playerRepo.UpdateAsync(player);
         return Result<CrashGameState>.Success(game);
+    }
+
+    private void EnsureNextSeedExists(Player player)
+    {
+        if (string.IsNullOrEmpty(player.NextServerSeed))
+        {
+            player.NextServerSeed = Guid.NewGuid().ToString("N");
+            player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
+        }
+    }
+
+    public async Task<Result<(string ServerSeedHash, string ClientSeed)>> GetNextSeedInfoAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        EnsureNextSeedExists(player);
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        await _playerRepo.UpdateAsync(player);
+
+        return Result<(string, string)>.Success((player.NextServerSeedHash, player.ClientSeed));
     }
 }

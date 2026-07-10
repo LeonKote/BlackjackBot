@@ -169,4 +169,17 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildHelpEmbed()]
         }));
     }
+
+    [SlashCommand("nextseed", "Посмотреть хеш сервера для вашей следующей игры")]
+    public async Task NextSeedAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.GetNextSeedInfoAsync(Context.User.Id);
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildNextSeedEmbed(result.Value.ServerSeedHash, result.Value.ClientSeed)]
+        }));
+    }
 }
