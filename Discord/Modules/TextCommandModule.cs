@@ -138,4 +138,26 @@ public class TextCommandModule : CommandModule<CommandContext>
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }
+
+    [Command("crash")]
+    public async Task CrashAsync(int bet, double target)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.PlayCrashAsync(Context.Message.Author.Id, bet, target);
+        if (!result.IsSuccess)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {result.Error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+            return;
+        }
+
+        var reply = new MessageProperties
+        {
+            Content = $"<@{Context.Message.Author.Id}>",
+            Embeds = [DiscordMapper.BuildCrashEmbed(result.Value!)],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        };
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
+    }
 }

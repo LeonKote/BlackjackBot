@@ -138,4 +138,24 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildProofEmbed(result.Value!)]
         }));
     }
+
+    [SlashCommand("crash", "Сыграть в Краш")]
+    public async Task CrashAsync(int bet, double target)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.PlayCrashAsync(Context.User.Id, bet, target);
+        if (!result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Content = $"<@{Context.User.Id}>",
+            Embeds = [DiscordMapper.BuildCrashEmbed(result.Value!)]
+        }));
+    }
 }

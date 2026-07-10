@@ -15,4 +15,5 @@ public interface IBlackjackService
     // Новые методы
     Task<Result> ChangeSeedAsync(ulong userId, string newSeed);
     Task<Result<GameHistory>> GetGameProofAsync(long gameId); // ID теперь long
+    Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier);
 }

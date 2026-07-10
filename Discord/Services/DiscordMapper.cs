@@ -125,9 +125,31 @@ public static class DiscordMapper
 
     public static EmbedProperties BuildProofEmbed(GameHistory history)
     {
-        // Генерируем готовый Python-скрипт с уже подставленными переменными этой игры!
-        // В C# при использовании $@ перед строкой, чтобы вывести { и }, их нужно удваивать {{ }}
-        string pythonCode = $@"import hashlib
+        string pythonCode;
+        if (history.GameType == "Crash")
+        {
+            pythonCode = $@"import hashlib
+import math
+
+server = '{history.ServerSeed}'
+client = '{history.ClientSeed}'
+game_id = {history.Id}
+
+s = f'{{server}}:{{client}}:{{game_id}}'
+h_hex = hashlib.sha256(s.encode()).hexdigest()[:13]
+h = int(h_hex, 16)
+e = 2**52
+
+if h % 20 == 0:
+    multiplier = 1.00
+else:
+    multiplier = math.floor((100.0 * e - h) / (e - h)) / 100.0
+
+print(f'Итоговый множитель: {{multiplier}}x')";
+        }
+        else
+        {
+            pythonCode = $@"import hashlib
 
 server = '{history.ServerSeed}'
 client = '{history.ClientSeed}'
@@ -145,11 +167,9 @@ for i in range(52):
 
 cards.sort(key=lambda x: x[0])
 print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
+        }
 
-        // Кодируем скрипт, чтобы вставить его в URL-ссылку
         string encodedCode = Uri.EscapeDataString(pythonCode);
-
-        // Ссылка на онлайн-визуализатор Python (код передается прямо в ссылке)
         string directLink = $"https://pythontutor.com/render.html#code={encodedCode}&cumulative=false&heapPrimitives=nevernest&mode=edit&origin=opt-frontend.js&py=3&rawInputLstJSON=%5B%5D&textReferences=false";
 
         return new EmbedProperties
@@ -157,22 +177,42 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
             Title = $"⚖️ Проверка честности (ID: {history.Id})",
             Color = new Color(0x3498DB),
             Description = $"""
+            **Игра:** {history.GameType}
             **Server Seed:** ||`{history.ServerSeed}`||
             **Client Seed:** `{history.ClientSeed}`
 
-            **Как проверить самому?**
-            Этот скрипт **уже содержит данные вашей игры**. Мы сделали 2 удобных способа для проверки:
-
             🔗 **Способ 1 (В один клик):** 
             **[Нажмите сюда, чтобы открыть скрипт]({directLink})**
-            *(На открывшемся сайте нажмите кнопку **Last >>** под кодом, и справа в окне Print output появится порядок ваших карт).*
+            *(На открывшемся сайте нажмите кнопку **Last >>** под кодом, чтобы увидеть результат).*
 
             📋 **Способ 2 (Ручной):**
-            Наведите на код ниже, нажмите кнопку копирования справа вверху, вставьте его на [Online-Python.com](https://www.online-python.com/) и нажмите **Run**.
-
+            Вставьте код ниже на [Online-Python.com](https://www.online-python.com/) и нажмите **Run**.
             ```python
             {pythonCode}
             ```
+            """
+        };
+    }
+
+    public static EmbedProperties BuildCrashEmbed(CrashGameState game)
+    {
+        Color color = game.IsWin ? new Color(0x98FB98) : new Color(0xFFB6C1);
+        string resultStr = game.IsWin
+            ? $"✅ Вы успешно вывели на **{game.TargetMultiplier}x** и выиграли **{game.Payout}** монет!"
+            : $"💥 Ракета взорвалась на **{game.ActualMultiplier}x**. Вы не успели вывести ставку.";
+
+        return new EmbedProperties
+        {
+            Title = $"🚀 Краш (ID: {game.Id})",
+            Color = color,
+            Description = $"""
+            💰 **Ставка:** {game.Bet}
+            🎯 **Цель (Автовывод):** {game.TargetMultiplier}x
+            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+
+            📈 **Итоговый множитель: {game.ActualMultiplier}x**
+
+            **Результат:** {resultStr}
             """
         };
     }

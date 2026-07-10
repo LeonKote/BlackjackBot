@@ -6,7 +6,9 @@ public class GameHistory
     public ulong UserId { get; set; }
     public string ServerSeed { get; set; } = "";
     public string ClientSeed { get; set; } = "";
-    // Убрали Nonce
     public string ServerSeedHash { get; set; } = "";
     public bool IsCompleted { get; set; } = false;
+
+    // Новое поле для определения игры (Blackjack или Crash)
+    public string GameType { get; set; } = "Blackjack";
 }

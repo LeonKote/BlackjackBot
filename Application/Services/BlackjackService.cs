@@ -266,4 +266,67 @@ public class BlackjackService : IBlackjackService
 
         return Result<GameHistory>.Success(history);
     }
+
+    public async Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier)
+    {
+        if (bet < 50) return Result<CrashGameState>.Failure("Минимальная ставка - 50 монет.");
+        if (targetMultiplier < 1.01) return Result<CrashGameState>.Failure("Минимальный множитель - 1.01x.");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Balance < bet) return Result<CrashGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
+
+        string serverSeed = Guid.NewGuid().ToString("N");
+        string serverSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverSeed))).ToLower();
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        var history = await _historyRepo.CreateAsync(new GameHistory
+        {
+            UserId = userId,
+            ServerSeed = serverSeed,
+            ClientSeed = player.ClientSeed,
+            ServerSeedHash = serverSeedHash,
+            IsCompleted = true, // Краш завершается моментально
+            GameType = "Crash" // <-- Указываем тип игры
+        });
+
+        player.Balance -= bet;
+
+        // Provably Fair алгоритм для Краша (Стандарт казино Stake / Bustabit)
+        byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}"));
+        string hex = Convert.ToHexString(hashBytes).ToLower()[..13]; // Берем первые 52 бита хеша
+        long h = Convert.ToInt64(hex, 16);
+        long e = (long)Math.Pow(2, 52);
+
+        double actualMultiplier = 1.00;
+        if (h % 20 != 0) // 5% шанс моментального краша на 1.00 (House Edge казино)
+        {
+            actualMultiplier = Math.Floor((100.0 * e - h) / (e - h)) / 100.0;
+        }
+
+        var game = new CrashGameState
+        {
+            Id = history.Id,
+            UserId = userId,
+            Bet = bet,
+            TargetMultiplier = targetMultiplier,
+            ActualMultiplier = actualMultiplier,
+            ServerSeed = serverSeed,
+            ServerSeedHash = serverSeedHash,
+            ClientSeed = player.ClientSeed
+        };
+
+        if (game.IsWin)
+        {
+            player.Balance += game.Payout;
+            player.Wins++;
+        }
+        else
+        {
+            player.Losses++;
+        }
+        player.GamesPlayed++;
+
+        await _playerRepo.UpdateAsync(player);
+        return Result<CrashGameState>.Success(game);
+    }
 }
