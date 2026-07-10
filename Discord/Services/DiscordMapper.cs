@@ -125,25 +125,54 @@ public static class DiscordMapper
 
     public static EmbedProperties BuildProofEmbed(GameHistory history)
     {
+        // Генерируем готовый Python-скрипт с уже подставленными переменными этой игры!
+        // В C# при использовании $@ перед строкой, чтобы вывести { и }, их нужно удваивать {{ }}
+        string pythonCode = $@"import hashlib
+
+server = '{history.ServerSeed}'
+client = '{history.ClientSeed}'
+game_id = {history.Id}
+
+suits = ['♥️', '♦️', '♣️', '♠️']
+ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A']
+deck = [f'{{s}}{{r}}' for s in suits for r in ranks]
+
+cards = []
+for i in range(52):
+    s = f'{{server}}:{{client}}:{{game_id}}:{{i}}'
+    h = hashlib.sha256(s.encode()).hexdigest()
+    cards.append((h, deck[i]))
+
+cards.sort(key=lambda x: x[0])
+print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
+
+        // Кодируем скрипт, чтобы вставить его в URL-ссылку
+        string encodedCode = Uri.EscapeDataString(pythonCode);
+
+        // Ссылка на онлайн-визуализатор Python (код передается прямо в ссылке)
+        string directLink = $"https://pythontutor.com/render.html#code={encodedCode}&cumulative=false&heapPrimitives=nevernest&mode=edit&origin=opt-frontend.js&py=3&rawInputLstJSON=%5B%5D&textReferences=false";
+
         return new EmbedProperties
         {
             Title = $"⚖️ Проверка честности (ID: {history.Id})",
             Color = new Color(0x3498DB),
             Description = $"""
             **Server Seed:** ||`{history.ServerSeed}`||
-            **Server Seed Hash:** `{history.ServerSeedHash}`
             **Client Seed:** `{history.ClientSeed}`
-            **Game ID:** `{history.Id}`
-            
-            **Как алгоритм тасует колоду?**
-            1. Изначально берется 52 карты (от Двоек до Тузов по порядку: ♥️, ♦️, ♣️, ♠️).
-            2. Для каждой карты (индекс от 0 до 51) вычисляется **SHA256-хеш** от строки:
-            `ServerSeed:ClientSeed:GameID:Index`
-            *(Пример для первой карты: `{history.ServerSeed}:{history.ClientSeed}:{history.Id}:0`)*
-            3. 52 карты сортируются по полученным хешам в алфавитном порядке (от меньшего к большему).
-            4. Карта с самым маленьким хешем сдается первой.
 
-            *Этот алгоритм гарантирует абсолютную случайность и исключает подкрутку. Вы можете легко повторить его сами на Python, C# или JS, чтобы сверить выданные вам карты!*
+            **Как проверить самому?**
+            Этот скрипт **уже содержит данные вашей игры**. Мы сделали 2 удобных способа для проверки:
+
+            🔗 **Способ 1 (В один клик):** 
+            **[Нажмите сюда, чтобы открыть скрипт]({directLink})**
+            *(На открывшемся сайте нажмите кнопку **Last >>** под кодом, и справа в окне Print output появится порядок ваших карт).*
+
+            📋 **Способ 2 (Ручной):**
+            Наведите на код ниже, нажмите кнопку копирования справа вверху, вставьте его на [Online-Python.com](https://www.online-python.com/) и нажмите **Run**.
+
+            ```python
+            {pythonCode}
+            ```
             """
         };
     }
