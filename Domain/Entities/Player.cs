@@ -25,4 +25,11 @@ public class Player
     public int CrashLosses { get; set; }
     public long CrashTotalMoneyWon { get; set; }
     public long CrashTotalMoneyLost { get; set; }
+
+    // НОВОЕ: Статистика Дайса (Костей)
+    public int DiceGamesPlayed { get; set; }
+    public int DiceWins { get; set; }
+    public int DiceLosses { get; set; }
+    public long DiceTotalMoneyWon { get; set; }
+    public long DiceTotalMoneyLost { get; set; }
 }

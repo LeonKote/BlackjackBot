@@ -183,4 +183,24 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildNextSeedEmbed(result.Value.ServerSeedHash, result.Value.ClientSeed)]
         }));
     }
+
+    [SlashCommand("dice", "Сыграть в Дайс (Кости)")]
+    public async Task DiceAsync(int bet, int min, int max)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.PlayDiceAsync(Context.User.Id, bet, min, max);
+        if (!result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Content = $"<@{Context.User.Id}>",
+            Embeds = [DiscordMapper.BuildDiceEmbed(result.Value!)]
+        }));
+    }
 }

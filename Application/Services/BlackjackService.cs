@@ -390,4 +390,76 @@ public class BlackjackService : IBlackjackService
 
         return Result<(string, string)>.Success((player.NextServerSeedHash, player.ClientSeed));
     }
+
+    public async Task<Result<DiceGameState>> PlayDiceAsync(ulong userId, int bet, int min, int max)
+    {
+        if (bet < 50) return Result<DiceGameState>.Failure("Минимальная ставка - 50 монет.");
+        if (min < 1 || max > 100 || min > max) return Result<DiceGameState>.Failure("Диапазон должен быть от 1 до 100 (например: 1 50).");
+
+        int chance = max - min + 1;
+        if (chance > 95) return Result<DiceGameState>.Failure("Максимальный шанс выигрыша — 95%. Выберите меньший диапазон.");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Balance < bet) return Result<DiceGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
+
+        EnsureNextSeedExists(player);
+        string serverSeed = player.NextServerSeed;
+        string serverSeedHash = player.NextServerSeedHash;
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        var history = await _historyRepo.CreateAsync(new GameHistory
+        {
+            UserId = userId,
+            ServerSeed = serverSeed,
+            ClientSeed = player.ClientSeed,
+            ServerSeedHash = serverSeedHash,
+            IsCompleted = true,
+            GameType = "Dice" // Указываем тип игры
+        });
+
+        // Новый сид для следующей игры
+        player.NextServerSeed = Guid.NewGuid().ToString("N");
+        player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
+
+        player.Balance -= bet;
+
+        // Provably Fair алгоритм: берем первые 8 символов хеша (4 байта), переводим в число и берем остаток от деления на 100
+        byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}"));
+        string hex = Convert.ToHexString(hashBytes).ToLower()[..8];
+        long h = Convert.ToInt64(hex, 16);
+        int rolledNumber = (int)(h % 100) + 1;
+
+        // Считаем множитель (99.0 / шанс) с округлением до 2 знаков
+        double multiplier = Math.Round(99.0 / chance, 2);
+
+        var game = new DiceGameState
+        {
+            Id = history.Id,
+            UserId = userId,
+            Bet = bet,
+            MinNumber = min,
+            MaxNumber = max,
+            Multiplier = multiplier,
+            RolledNumber = rolledNumber,
+            ServerSeed = serverSeed,
+            ServerSeedHash = serverSeedHash,
+            ClientSeed = player.ClientSeed
+        };
+
+        if (game.IsWin)
+        {
+            player.Balance += game.Payout;
+            player.DiceWins++;
+            player.DiceTotalMoneyWon += (game.Payout - game.Bet);
+        }
+        else
+        {
+            player.DiceLosses++;
+            player.DiceTotalMoneyLost += game.Bet;
+        }
+        player.DiceGamesPlayed++;
+
+        await _playerRepo.UpdateAsync(player);
+        return Result<DiceGameState>.Success(game);
+    }
 }

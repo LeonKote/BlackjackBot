@@ -115,4 +115,18 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
+
+    [ComponentInteraction("profile_dice")]
+    public async Task ProfileDiceAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+        {
+            msg.Embeds = [DiscordMapper.BuildProfileDiceEmbed(Context.User, player)];
+            msg.Components = DiscordMapper.BuildProfileComponents(userId);
+        }));
+    }
 }

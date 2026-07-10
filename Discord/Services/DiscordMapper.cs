@@ -137,7 +137,8 @@ public static class DiscordMapper
             new ActionRowProperties([
                 new ButtonProperties($"profile_general:{userId}", "Главная", ButtonStyle.Secondary),
                 new ButtonProperties($"profile_bj:{userId}", "Блекджек", ButtonStyle.Primary),
-                new ButtonProperties($"profile_crash:{userId}", "Краш", ButtonStyle.Danger)
+                new ButtonProperties($"profile_crash:{userId}", "Краш", ButtonStyle.Danger),
+                new ButtonProperties($"profile_dice:{userId}", "Дайс", ButtonStyle.Success)
             ])
         ];
     }
@@ -191,6 +192,21 @@ else:
 
 print(f'Итоговый множитель: {{multiplier}}x')";
         }
+        else if (history.GameType == "Dice")
+        {
+            pythonCode = $@"import hashlib
+
+server = '{history.ServerSeed}'
+client = '{history.ClientSeed}'
+game_id = {history.Id}
+
+s = f'{{server}}:{{client}}:{{game_id}}'
+h_hex = hashlib.sha256(s.encode()).hexdigest()[:8]
+h = int(h_hex, 16)
+
+rolled_number = (h % 100) + 1
+print(f'Выпавшее число: {{rolled_number}}')";
+        }
         else
         {
             pythonCode = $@"import hashlib
@@ -227,13 +243,7 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
             🔗 **Способ 1 (В один клик):** 
             **[Нажмите сюда, чтобы открыть скрипт]({directLink})**
-            *(На открывшемся сайте нажмите кнопку **Last >>** под кодом, чтобы увидеть результат).*
-
-            📋 **Способ 2 (Ручной):**
-            Вставьте код ниже на [Online-Python.com](https://www.online-python.com/) и нажмите **Run**.
-            ```python
-            {pythonCode}
-            ```
+            *(Нажмите кнопку **Last >>** под кодом).*
             """
         };
     }
@@ -271,7 +281,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
             Fields = [
                 new() { Name = "🎮 Игры", Value =
                     "`!bj <ставка>` — Сыграть в Блекджек.\n" +
-                    "`!crash <ставка> <множитель>` — Сыграть в Краш (например: `!crash 1000 2.5`).",
+                    "`!crash <ставка> <множитель>` — Сыграть в Краш (например: `!crash 1000 2.5`)." +
+                    "`!dice <ставка> <от> <до>` — Сыграть в Дайс (например: `!dice 1000 1 50`).",
                     Inline = false },
                 new() { Name = "👤 Профиль и Экономика", Value =
                     "`!profile` — Посмотреть свой баланс и статистику.\n" +
@@ -302,6 +313,49 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
             *Перед началом каждой игры сервер заранее генерирует сид и показывает вам его хеш (он написан выше).*
             *После того как вы сыграете, вы сможете сверить, что сервер использовал именно этот сид, а не подменил его!*
             """
+        };
+    }
+
+    public static EmbedProperties BuildDiceEmbed(DiceGameState game)
+    {
+        Color color = game.IsWin ? new Color(0x98FB98) : new Color(0xFFB6C1);
+        string resultStr = game.IsWin
+            ? $"✅ Выпало число **{game.RolledNumber}**! Вы выиграли **{game.Payout}** монет!"
+            : $"❌ Выпало число **{game.RolledNumber}**. Ставка проиграна.";
+
+        return new EmbedProperties
+        {
+            Title = $"🎲 Дайс (ID: {game.Id})",
+            Color = color,
+            Description = $"""
+            💰 **Ставка:** {game.Bet}
+            🎯 **Ваш диапазон:** от {game.MinNumber} до {game.MaxNumber} (Шанс: {game.MaxNumber - game.MinNumber + 1}%)
+            ✖️ **Множитель выигрыша:** {game.Multiplier}x
+            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+
+            🎲 **Выпавшее число: {game.RolledNumber}**
+
+            **Результат:** {resultStr}
+            """
+        };
+    }
+
+    public static EmbedProperties BuildProfileDiceEmbed(User user, Player player)
+    {
+        int diceWinrate = player.DiceGamesPlayed > 0 ? (int)Math.Round((double)player.DiceWins / player.DiceGamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"🎲 Статистика Дайса ({user.Username})",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0x2ECC71),
+            Fields = [
+                new() { Name = "🎮 Сыграно", Value = player.DiceGamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед / 💀 Поражений", Value = $"{player.DiceWins} / {player.DiceLosses}", Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{diceWinrate}%", Inline = true },
+                new() { Name = "💵 Выиграно", Value = $"+{player.DiceTotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно", Value = $"-{player.DiceTotalMoneyLost:N0}", Inline = true }
+            ]
         };
     }
 }

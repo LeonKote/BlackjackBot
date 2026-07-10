@@ -187,4 +187,26 @@ public class TextCommandModule : CommandModule<CommandContext>
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }
+
+    [Command("dice")]
+    public async Task DiceAsync(int bet, int min, int max)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.PlayDiceAsync(Context.Message.Author.Id, bet, min, max);
+        if (!result.IsSuccess)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {result.Error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+            return;
+        }
+
+        var reply = new MessageProperties
+        {
+            Content = $"<@{Context.Message.Author.Id}>",
+            Embeds = [DiscordMapper.BuildDiceEmbed(result.Value!)],
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        };
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
+    }
 }

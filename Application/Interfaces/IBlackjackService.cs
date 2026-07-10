@@ -17,4 +17,5 @@ public interface IBlackjackService
     Task<Result<GameHistory>> GetGameProofAsync(long gameId); // ID теперь long
     Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier);
     Task<Result<(string ServerSeedHash, string ClientSeed)>> GetNextSeedInfoAsync(ulong userId);
+    Task<Result<DiceGameState>> PlayDiceAsync(ulong userId, int bet, int min, int max);
 }
