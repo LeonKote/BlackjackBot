@@ -62,7 +62,8 @@ public class TextCommandModule : CommandModule<CommandContext>
         var player = await _playerRepo.GetOrCreateAsync(Context.Message.Author.Id);
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
         {
-            Embeds = [DiscordMapper.BuildProfileEmbed(Context.Message.Author, player)],
+            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(Context.Message.Author, player)],
+            Components = DiscordMapper.BuildProfileComponents(Context.Message.Author.Id), // Выводим кнопки
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }

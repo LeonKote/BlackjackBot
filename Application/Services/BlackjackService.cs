@@ -80,11 +80,28 @@ public class BlackjackService : IBlackjackService
         if (hand.Score == 21 || game.DealerScore == 21)
         {
             game.IsGameOver = true;
-            player.GamesPlayed++;
+            player.BjGamesPlayed++; // <-- Изменено
 
-            if (hand.Score == 21 && game.DealerScore == 21) { hand.Status = GameStatus.Push; player.Balance += bet; player.Draws++; }
-            else if (hand.Score == 21) { hand.Status = GameStatus.BlackjackWin; player.Balance += (int)(bet * 2.5); player.Wins++; player.Blackjacks++; player.TotalMoneyWon += (int)(bet * 1.5); }
-            else { hand.Status = GameStatus.DealerWin; player.Losses++; player.TotalMoneyLost += bet; }
+            if (hand.Score == 21 && game.DealerScore == 21)
+            {
+                hand.Status = GameStatus.Push;
+                player.Balance += bet;
+                player.BjDraws++; // <-- Изменено
+            }
+            else if (hand.Score == 21)
+            {
+                hand.Status = GameStatus.BlackjackWin;
+                player.Balance += (int)(bet * 2.5);
+                player.BjWins++; // <-- Изменено
+                player.Blackjacks++;
+                player.BjTotalMoneyWon += (int)(bet * 1.5); // <-- Изменено
+            }
+            else
+            {
+                hand.Status = GameStatus.DealerWin;
+                player.BjLosses++; // <-- Изменено
+                player.BjTotalMoneyLost += bet; // <-- Изменено
+            }
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveGame(userId);
@@ -217,9 +234,9 @@ public class BlackjackService : IBlackjackService
         {
             if (hand.Status == GameStatus.PlayerBust)
             {
-                player.GamesPlayed++;
-                player.Losses++;
-                player.TotalMoneyLost += hand.Bet; // Добавили учет проигрыша при переборе
+                player.BjGamesPlayed++; // <-- Изменено
+                player.BjLosses++; // <-- Изменено
+                player.BjTotalMoneyLost += hand.Bet; // <-- Изменено
                 continue;
             }
 
@@ -228,7 +245,7 @@ public class BlackjackService : IBlackjackService
             else if (game.DealerScore < hand.Score) hand.Status = GameStatus.PlayerWin;
             else hand.Status = GameStatus.Push;
 
-            player.GamesPlayed++;
+            player.BjGamesPlayed++; // <-- Изменено
 
             int payout = hand.Status switch
             {
@@ -237,18 +254,18 @@ public class BlackjackService : IBlackjackService
                 _ => 0
             };
 
-            int netProfit = payout - hand.Bet; // Считаем чистую прибыль или убыток
+            int netProfit = payout - hand.Bet;
 
-            if (hand.Status == GameStatus.Push) player.Draws++;
+            if (hand.Status == GameStatus.Push) player.BjDraws++; // <-- Изменено
             else if (payout > 0)
             {
-                player.Wins++;
-                player.TotalMoneyWon += netProfit; // Учет чистой победы
+                player.BjWins++; // <-- Изменено
+                player.BjTotalMoneyWon += netProfit; // <-- Изменено
             }
             else
             {
-                player.Losses++;
-                player.TotalMoneyLost += hand.Bet; // Учет проигрыша
+                player.BjLosses++; // <-- Изменено
+                player.BjTotalMoneyLost += hand.Bet; // <-- Изменено
             }
 
             player.Balance += payout;
@@ -340,15 +357,15 @@ public class BlackjackService : IBlackjackService
         if (game.IsWin)
         {
             player.Balance += game.Payout;
-            player.Wins++;
-            player.TotalMoneyWon += (game.Payout - game.Bet); // Учет чистой прибыли
+            player.CrashWins++; // <-- Изменено
+            player.CrashTotalMoneyWon += (game.Payout - game.Bet); // <-- Изменено
         }
         else
         {
-            player.Losses++;
-            player.TotalMoneyLost += game.Bet; // Учет потери
+            player.CrashLosses++; // <-- Изменено
+            player.CrashTotalMoneyLost += game.Bet; // <-- Изменено
         }
-        player.GamesPlayed++;
+        player.CrashGamesPlayed++; // <-- Изменено
 
         await _playerRepo.UpdateAsync(player);
         return Result<CrashGameState>.Success(game);

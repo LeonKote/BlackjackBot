@@ -54,7 +54,8 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         var player = await _playerRepo.GetOrCreateAsync(Context.User.Id);
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
         {
-            Embeds = [DiscordMapper.BuildProfileEmbed(Context.User, player)]
+            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(Context.User, player)],
+            Components = DiscordMapper.BuildProfileComponents(Context.User.Id) // Выводим кнопки
         }));
     }
 

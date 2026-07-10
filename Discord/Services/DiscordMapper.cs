@@ -77,27 +77,69 @@ public static class DiscordMapper
         return new EmbedProperties { Title = $"🃏 Блекджек (ID: {game.Id})", Description = description, Color = color, Fields = fields };
     }
 
-    public static EmbedProperties BuildProfileEmbed(User user, Player player)
+    // 1. Главная страница профиля
+    public static EmbedProperties BuildProfileGeneralEmbed(User user, Player player)
     {
-        int winrate = player.GamesPlayed > 0 ? (int)Math.Round((double)player.Wins / player.GamesPlayed * 100) : 0;
-
         return new EmbedProperties
         {
             Title = $"📊 Профиль {user.Username}",
             Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
             Color = new Color(0x9B59B6),
+            Description = $"**💰 Баланс:** {player.Balance} монет\n\n*👇 Нажмите на кнопки ниже, чтобы посмотреть подробную статистику по каждой игре.*"
+        };
+    }
+
+    // 2. Статистика Блекджека
+    public static EmbedProperties BuildProfileBjEmbed(User user, Player player)
+    {
+        int bjWinrate = player.BjGamesPlayed > 0 ? (int)Math.Round((double)player.BjWins / player.BjGamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"🃏 Статистика Блекджека ({user.Username})",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0x3498DB),
             Fields = [
-                new() { Name = "💰 Баланс", Value = $"{player.Balance} монет", Inline = false },
-                new() { Name = "💵 Выиграно денег", Value = $"{player.TotalMoneyWon:N0}", Inline = true },
-                new() { Name = "💸 Проиграно денег", Value = $"{player.TotalMoneyLost:N0}", Inline = true },
-                new() { Name = "🎮 Сыграно", Value = player.GamesPlayed.ToString(), Inline = true },
-                new() { Name = "🏆 Побед", Value = player.Wins.ToString(), Inline = true },
-                new() { Name = "📈 Винрейт", Value = $"{winrate}%", Inline = true },
-                new() { Name = "💀 Поражений", Value = player.Losses.ToString(), Inline = true },
-                new() { Name = "🤝 Ничьих", Value = player.Draws.ToString(), Inline = true },
-                new() { Name = "🃏 Блекджеков", Value = player.Blackjacks.ToString(), Inline = true }
+                new() { Name = "🎮 Сыграно", Value = player.BjGamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед / 💀 Поражений", Value = $"{player.BjWins} / {player.BjLosses}", Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{bjWinrate}%", Inline = true },
+                new() { Name = "🤝 Ничьих / 🃏 Блекджеков", Value = $"{player.BjDraws} / {player.Blackjacks}", Inline = true },
+                new() { Name = "💵 Выиграно", Value = $"+{player.BjTotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно", Value = $"-{player.BjTotalMoneyLost:N0}", Inline = true }
             ]
         };
+    }
+
+    // 3. Статистика Краша
+    public static EmbedProperties BuildProfileCrashEmbed(User user, Player player)
+    {
+        int crashWinrate = player.CrashGamesPlayed > 0 ? (int)Math.Round((double)player.CrashWins / player.CrashGamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"🚀 Статистика Краша ({user.Username})",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0xE74C3C),
+            Fields = [
+                new() { Name = "🎮 Сыграно", Value = player.CrashGamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед / 💀 Поражений", Value = $"{player.CrashWins} / {player.CrashLosses}", Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{crashWinrate}%", Inline = true },
+                new() { Name = "💵 Выиграно", Value = $"+{player.CrashTotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно", Value = $"-{player.CrashTotalMoneyLost:N0}", Inline = true }
+            ]
+        };
+    }
+
+    // 4. Кнопки навигации профиля
+    public static List<ActionRowProperties> BuildProfileComponents(ulong userId)
+    {
+        return [
+            new ActionRowProperties([
+                new ButtonProperties($"profile_general:{userId}", "Главная", ButtonStyle.Secondary),
+                new ButtonProperties($"profile_bj:{userId}", "Блекджек", ButtonStyle.Primary),
+                new ButtonProperties($"profile_crash:{userId}", "Краш", ButtonStyle.Danger)
+            ])
+        ];
     }
 
     public static List<ActionRowProperties> BuildComponents(GameState game)

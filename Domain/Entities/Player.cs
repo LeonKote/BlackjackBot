@@ -6,18 +6,23 @@ public class Player
     public int Balance { get; set; }
     public DateTimeOffset LastHourly { get; set; }
 
-    public int GamesPlayed { get; set; }
-    public int Wins { get; set; }
-    public int Losses { get; set; }
-    public int Draws { get; set; }
-    public int Blackjacks { get; set; }
-
     public string ClientSeed { get; set; } = "default_seed";
-
-    public long TotalMoneyWon { get; set; }
-    public long TotalMoneyLost { get; set; }
-
-    // НОВЫЕ ПОЛЯ: Заранее сгенерированный сид для следующей игры
     public string NextServerSeed { get; set; } = "";
     public string NextServerSeedHash { get; set; } = "";
+
+    // Статистика Блекджека
+    public int BjGamesPlayed { get; set; }
+    public int BjWins { get; set; }
+    public int BjLosses { get; set; }
+    public int BjDraws { get; set; }
+    public int Blackjacks { get; set; }
+    public long BjTotalMoneyWon { get; set; }
+    public long BjTotalMoneyLost { get; set; }
+
+    // Статистика Краша
+    public int CrashGamesPlayed { get; set; }
+    public int CrashWins { get; set; }
+    public int CrashLosses { get; set; }
+    public long CrashTotalMoneyWon { get; set; }
+    public long CrashTotalMoneyLost { get; set; }
 }
