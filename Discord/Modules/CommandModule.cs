@@ -203,4 +203,26 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildDiceEmbed(result.Value!)]
         }));
     }
+
+    [SlashCommand("mines", "Сыграть в Сапёра")]
+    public async Task MinesAsync(int bet, int minesCount)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.StartMinesweeperAsync(Context.User.Id, bet, minesCount);
+        if (!result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        var game = result.Value!;
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Content = $"<@{Context.User.Id}>",
+            Embeds = [DiscordMapper.BuildMinesweeperEmbed(game)],
+            Components = DiscordMapper.BuildMinesweeperComponents(game)
+        }));
+    }
 }

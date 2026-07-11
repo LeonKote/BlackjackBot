@@ -138,7 +138,8 @@ public static class DiscordMapper
                 new ButtonProperties($"profile_general:{userId}", "Главная", ButtonStyle.Secondary),
                 new ButtonProperties($"profile_bj:{userId}", "Блекджек", ButtonStyle.Primary),
                 new ButtonProperties($"profile_crash:{userId}", "Краш", ButtonStyle.Danger),
-                new ButtonProperties($"profile_dice:{userId}", "Дайс", ButtonStyle.Success)
+                new ButtonProperties($"profile_dice:{userId}", "Дайс", ButtonStyle.Success),
+                new ButtonProperties($"profile_mines:{userId}", "Сапёр", ButtonStyle.Secondary) // <-- Новая кнопка
             ])
         ];
     }
@@ -206,6 +207,26 @@ h = int(h_hex, 16)
 
 rolled_number = (h % 100) + 1
 print(f'Выпавшее число: {{rolled_number}}')";
+        }
+        else if (history.GameType == "Minesweeper")
+        {
+            pythonCode = $@"import hashlib
+
+server = '{history.ServerSeed}'
+client = '{history.ClientSeed}'
+game_id = {history.Id}
+
+tiles = []
+for i in range(20):
+    s = f'{{server}}:{{client}}:{{game_id}}:{{i}}'
+    h = hashlib.sha256(s.encode()).hexdigest()
+    tiles.append((h, i))
+
+tiles.sort(key=lambda x: x[0])
+mines = [t[1] for t in tiles] # Отсортированные индексы
+
+print('Позиции бомб (в зависимости от их количества, берите первые N чисел):')
+print(mines)";
         }
         else
         {
@@ -282,7 +303,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
                 new() { Name = "🎮 Игры", Value =
                     "`!bj <ставка>` — Сыграть в Блекджек.\n" +
                     "`!crash <ставка> <множитель>` — Сыграть в Краш (например: `!crash 1000 2.5`)." +
-                    "`!dice <ставка> <от> <до>` — Сыграть в Дайс (например: `!dice 1000 1 50`).",
+                    "`!dice <ставка> <от> <до>` — Сыграть в Дайс (например: `!dice 1000 1 50`)." +
+                    "`!mines <ставка> <количество мин 1-19>` — Сыграть в Сапёра.",
                     Inline = false },
                 new() { Name = "👤 Профиль и Экономика", Value =
                     "`!profile` — Посмотреть свой баланс и статистику.\n" +
@@ -355,6 +377,113 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
                 new() { Name = "📈 Винрейт", Value = $"{diceWinrate}%", Inline = true },
                 new() { Name = "💵 Выиграно", Value = $"+{player.DiceTotalMoneyWon:N0}", Inline = true },
                 new() { Name = "💸 Проиграно", Value = $"-{player.DiceTotalMoneyLost:N0}", Inline = true }
+            ]
+        };
+    }
+
+    public static EmbedProperties BuildMinesweeperEmbed(MinesweeperGameState game)
+    {
+        Color color = new Color(0x3498DB);
+        string resultStr = "Осторожно открывайте плитки или заберите выигрыш.";
+
+        if (game.IsGameOver)
+        {
+            color = game.IsCashedOut ? new Color(0x98FB98) : new Color(0xFFB6C1);
+            resultStr = game.IsCashedOut
+                ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
+                : $"💥 Вы нарвались на мину! Ставка проиграна.";
+        }
+
+        return new EmbedProperties
+        {
+            Title = $"💣 Сапёр (ID: {game.Id})",
+            Color = color,
+            Description = $"""
+            💰 **Ставка:** {game.Bet}
+            💣 **Количество мин:** {game.MinesCount}
+            ✖️ **Текущий множитель:** {game.CurrentMultiplier}x
+            💵 **Возможный выигрыш:** {game.CurrentPayout}
+            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+
+            **Результат:** {resultStr}
+            """
+        };
+    }
+
+    public static List<ActionRowProperties> BuildMinesweeperComponents(MinesweeperGameState game)
+    {
+        var rows = new List<ActionRowProperties>();
+
+        // Отрисовка сетки 5x4 (20 плиток)
+        for (int r = 0; r < 4; r++)
+        {
+            var buttons = new List<ButtonProperties>();
+            for (int c = 0; c < 5; c++)
+            {
+                int index = r * 5 + c;
+                string label = "⬜"; // Смайлик теперь прямо в тексте кнопки
+                ButtonStyle style = ButtonStyle.Secondary;
+                bool disabled = game.IsGameOver;
+
+                if (game.RevealedPositions.Contains(index))
+                {
+                    label = "💎";
+                    style = ButtonStyle.Success;
+                    disabled = true;
+                }
+                else if (game.IsGameOver) // Показываем скрытые плитки в конце игры
+                {
+                    if (game.MinePositions.Contains(index))
+                    {
+                        label = index == game.BustedOnTile ? "💥" : "💣";
+                        style = ButtonStyle.Danger;
+                    }
+                    else
+                    {
+                        label = "💎";
+                        style = ButtonStyle.Secondary; // Безопасные, но не открытые
+                    }
+                }
+
+                // Передаем label напрямую, убрали свойство Emoji
+                var btn = new ButtonProperties($"mines_click:{game.UserId}:{index}", label, style)
+                {
+                    Disabled = disabled
+                };
+                buttons.Add(btn);
+            }
+            rows.Add(new ActionRowProperties(buttons));
+        }
+
+        // 5-й ряд: Кнопка вывода (только если игра активна и есть открытые плитки)
+        if (!game.IsGameOver)
+        {
+            rows.Add(new ActionRowProperties([
+                new ButtonProperties($"mines_cashout:{game.UserId}", $"💰 Забрать {game.CurrentPayout}", ButtonStyle.Primary)
+                {
+                    Disabled = game.RevealedPositions.Count == 0
+                }
+            ]));
+        }
+
+        return rows;
+    }
+
+    public static EmbedProperties BuildProfileMinesEmbed(User user, Player player)
+    {
+        int minesWinrate = player.MinesGamesPlayed > 0 ? (int)Math.Round((double)player.MinesWins / player.MinesGamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"💣 Статистика Сапёра ({user.Username})",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0xF39C12),
+            Fields = [
+                new() { Name = "🎮 Сыграно", Value = player.MinesGamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед / 💀 Поражений", Value = $"{player.MinesWins} / {player.MinesLosses}", Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{minesWinrate}%", Inline = true },
+                new() { Name = "💵 Выиграно", Value = $"+{player.MinesTotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно", Value = $"-{player.MinesTotalMoneyLost:N0}", Inline = true }
             ]
         };
     }

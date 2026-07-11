@@ -35,6 +35,8 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<GameState>> StartGameAsync(ulong userId, int bet)
     {
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<GameState>.Failure("Завершите текущую игру!");
+
         if (bet < 50) return Result<GameState>.Failure("Минимальная ставка - 50 монет.");
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
@@ -302,6 +304,8 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier)
     {
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<CrashGameState>.Failure("Завершите текущую игру!");
+
         if (bet < 50) return Result<CrashGameState>.Failure("Минимальная ставка - 50 монет.");
         if (targetMultiplier < 1.01) return Result<CrashGameState>.Failure("Минимальный множитель - 1.01x.");
 
@@ -393,6 +397,8 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<DiceGameState>> PlayDiceAsync(ulong userId, int bet, int min, int max)
     {
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<DiceGameState>.Failure("Завершите текущую игру!");
+
         if (bet < 50) return Result<DiceGameState>.Failure("Минимальная ставка - 50 монет.");
         if (min < 1 || max > 100 || min > max) return Result<DiceGameState>.Failure("Диапазон должен быть от 1 до 100 (например: 1 50).");
 
@@ -461,5 +467,126 @@ public class BlackjackService : IBlackjackService
 
         await _playerRepo.UpdateAsync(player);
         return Result<DiceGameState>.Success(game);
+    }
+
+    public async Task<Result<MinesweeperGameState>> StartMinesweeperAsync(ulong userId, int bet, int minesCount)
+    {
+        if (bet < 50) return Result<MinesweeperGameState>.Failure("Минимальная ставка - 50 монет.");
+        if (minesCount < 1 || minesCount > 19) return Result<MinesweeperGameState>.Failure("Количество бомб должно быть от 1 до 19.");
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<MinesweeperGameState>.Failure("Завершите текущую игру!");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Balance < bet) return Result<MinesweeperGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
+
+        EnsureNextSeedExists(player);
+        string serverSeed = player.NextServerSeed;
+        string serverSeedHash = player.NextServerSeedHash;
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        var history = await _historyRepo.CreateAsync(new GameHistory
+        {
+            UserId = userId,
+            ServerSeed = serverSeed,
+            ClientSeed = player.ClientSeed,
+            ServerSeedHash = serverSeedHash,
+            IsCompleted = false,
+            GameType = "Minesweeper"
+        });
+
+        player.NextServerSeed = Guid.NewGuid().ToString("N");
+        player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
+
+        player.Balance -= bet;
+        await _playerRepo.UpdateAsync(player);
+
+        // Provably Fair алгоритм генерации бомб
+        var tilesWithHashes = Enumerable.Range(0, 20).Select(index =>
+        {
+            var hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}:{index}"));
+            return new { Index = index, Hash = Convert.ToHexString(hashBytes).ToLower() };
+        }).ToList();
+
+        // Сортируем плитки по хешу и берем первые `minesCount` индексов
+        var minePositions = tilesWithHashes.OrderBy(x => x.Hash).Take(minesCount).Select(x => x.Index).ToList();
+
+        var game = new MinesweeperGameState
+        {
+            Id = history.Id,
+            UserId = userId,
+            Bet = bet,
+            MinesCount = minesCount,
+            MinePositions = minePositions,
+            ServerSeed = serverSeed,
+            ServerSeedHash = serverSeedHash,
+            ClientSeed = player.ClientSeed
+        };
+
+        _sessionManager.TryAddMinesGame(game);
+        return Result<MinesweeperGameState>.Success(game);
+    }
+
+    public async Task<Result<MinesweeperGameState>> ClickMinesweeperAsync(ulong userId, int tileIndex)
+    {
+        if (!_sessionManager.TryGetMinesGame(userId, out var game) || game is null)
+            return Result<MinesweeperGameState>.Failure("Игра не найдена.");
+
+        if (game.RevealedPositions.Contains(tileIndex))
+            return Result<MinesweeperGameState>.Failure("Эта плитка уже открыта!");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+
+        if (game.MinePositions.Contains(tileIndex))
+        {
+            // БАБАХ!
+            game.IsGameOver = true;
+            game.IsBusted = true;
+            game.BustedOnTile = tileIndex;
+
+            player.MinesGamesPlayed++;
+            player.MinesLosses++;
+            player.MinesTotalMoneyLost += game.Bet;
+
+            await _playerRepo.UpdateAsync(player);
+            _sessionManager.RemoveMinesGame(userId);
+            await _historyRepo.UpdateToCompletedAsync(game.Id);
+
+            return Result<MinesweeperGameState>.Success(game);
+        }
+
+        // Успешно открыли безопасную плитку
+        game.RevealedPositions.Add(tileIndex);
+
+        // Проверка: открыты ли ВСЕ безопасные плитки?
+        if (game.RevealedPositions.Count == 20 - game.MinesCount)
+        {
+            return await CashoutMinesweeperAsync(userId); // Автоматический вывод
+        }
+
+        return Result<MinesweeperGameState>.Success(game);
+    }
+
+    public async Task<Result<MinesweeperGameState>> CashoutMinesweeperAsync(ulong userId)
+    {
+        if (!_sessionManager.TryGetMinesGame(userId, out var game) || game is null)
+            return Result<MinesweeperGameState>.Failure("Игра не найдена.");
+
+        if (game.RevealedPositions.Count == 0)
+            return Result<MinesweeperGameState>.Failure("Сначала откройте хотя бы одну плитку!");
+
+        game.IsGameOver = true;
+        game.IsCashedOut = true;
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+
+        player.Balance += game.CurrentPayout;
+        player.MinesGamesPlayed++;
+        player.MinesWins++;
+        player.MinesTotalMoneyWon += (game.CurrentPayout - game.Bet);
+
+        await _playerRepo.UpdateAsync(player);
+        _sessionManager.RemoveMinesGame(userId);
+        await _historyRepo.UpdateToCompletedAsync(game.Id);
+
+        return Result<MinesweeperGameState>.Success(game);
     }
 }

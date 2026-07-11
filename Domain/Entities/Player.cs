@@ -32,4 +32,11 @@ public class Player
     public int DiceLosses { get; set; }
     public long DiceTotalMoneyWon { get; set; }
     public long DiceTotalMoneyLost { get; set; }
+
+    // Статистика Сапёра
+    public int MinesGamesPlayed { get; set; }
+    public int MinesWins { get; set; }
+    public int MinesLosses { get; set; }
+    public long MinesTotalMoneyWon { get; set; }
+    public long MinesTotalMoneyLost { get; set; }
 }

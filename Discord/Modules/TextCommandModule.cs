@@ -209,4 +209,26 @@ public class TextCommandModule : CommandModule<CommandContext>
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
     }
+
+    [Command("mines")]
+    public async Task MinesAsync(int bet, int minesCount)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.StartMinesweeperAsync(Context.Message.Author.Id, bet, minesCount);
+        if (!result.IsSuccess)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {result.Error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+            return;
+        }
+
+        var game = result.Value!;
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Content = $"<@{Context.Message.Author.Id}>",
+            Embeds = [DiscordMapper.BuildMinesweeperEmbed(game)],
+            Components = DiscordMapper.BuildMinesweeperComponents(game),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
 }

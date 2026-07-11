@@ -129,4 +129,54 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
+
+    [ComponentInteraction("mines_click")]
+    public async Task MinesClickAsync(ulong userId, int tileIndex)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.ClickMinesweeperAsync(userId, tileIndex);
+        if (result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+            {
+                msg.Embeds = [DiscordMapper.BuildMinesweeperEmbed(result.Value!)];
+                msg.Components = DiscordMapper.BuildMinesweeperComponents(result.Value!);
+            }));
+        }
+        else await SendErrorAsync(result.Error);
+    }
+
+    [ComponentInteraction("mines_cashout")]
+    public async Task MinesCashoutAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.CashoutMinesweeperAsync(userId);
+        if (result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+            {
+                msg.Embeds = [DiscordMapper.BuildMinesweeperEmbed(result.Value!)];
+                msg.Components = DiscordMapper.BuildMinesweeperComponents(result.Value!);
+            }));
+        }
+        else await SendErrorAsync(result.Error);
+    }
+
+    [ComponentInteraction("profile_mines")]
+    public async Task ProfileMinesAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+        {
+            msg.Embeds = [DiscordMapper.BuildProfileMinesEmbed(Context.User, player)];
+            msg.Components = DiscordMapper.BuildProfileComponents(userId);
+        }));
+    }
 }
