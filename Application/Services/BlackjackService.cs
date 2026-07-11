@@ -588,4 +588,124 @@ public class BlackjackService : IBlackjackService
 
         return Result<MinesweeperGameState>.Success(game);
     }
+
+    public async Task<Result<HiloGameState>> StartHiloAsync(ulong userId, int bet)
+    {
+        if (bet < 50) return Result<HiloGameState>.Failure("Минимальная ставка - 50 монет.");
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<HiloGameState>.Failure("Завершите текущую игру!");
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Balance < bet) return Result<HiloGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
+
+        EnsureNextSeedExists(player);
+        string serverSeed = player.NextServerSeed;
+        string serverSeedHash = player.NextServerSeedHash;
+        if (string.IsNullOrWhiteSpace(player.ClientSeed)) player.ClientSeed = "default_seed";
+
+        var history = await _historyRepo.CreateAsync(new GameHistory
+        {
+            UserId = userId,
+            ServerSeed = serverSeed,
+            ClientSeed = player.ClientSeed,
+            ServerSeedHash = serverSeedHash,
+            IsCompleted = false,
+            GameType = "HiLo"
+        });
+
+        player.NextServerSeed = Guid.NewGuid().ToString("N");
+        player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
+
+        player.Balance -= bet;
+        await _playerRepo.UpdateAsync(player);
+
+        var game = new HiloGameState
+        {
+            Id = history.Id,
+            UserId = userId,
+            Bet = bet,
+            ServerSeed = serverSeed,
+            ServerSeedHash = serverSeedHash,
+            ClientSeed = player.ClientSeed
+        };
+
+        game.DrawnCards.Add(game.DrawCard(0)); // Вытягиваем самую первую (стартовую) карту
+
+        _sessionManager.TryAddHiloGame(game);
+        return Result<HiloGameState>.Success(game);
+    }
+
+    public async Task<Result<HiloGameState>> GuessHiloAsync(ulong userId, string guess)
+    {
+        if (!_sessionManager.TryGetHiloGame(userId, out var game) || game is null)
+            return Result<HiloGameState>.Failure("Игра не найдена.");
+
+        int round = game.DrawnCards.Count;
+        Card prevCard = game.DrawnCards.Last();
+        Card nextCard = game.DrawCard(round);
+
+        game.DrawnCards.Add(nextCard);
+
+        bool isWin = false;
+        double factor = 1.0;
+        int prevRank = (int)prevCard.Rank;
+
+        // Расчет с нулевым преимуществом казино (RTP 100%)
+        if (guess == "hi")
+        {
+            isWin = (int)nextCard.Rank >= prevRank;
+            factor = 13.0 / (15 - prevRank);
+        }
+        else if (guess == "lo")
+        {
+            isWin = (int)nextCard.Rank <= prevRank;
+            factor = 13.0 / (prevRank - 1);
+        }
+
+        if (isWin)
+        {
+            game.CurrentMultiplier = Math.Round(game.CurrentMultiplier * factor, 2);
+            return Result<HiloGameState>.Success(game);
+        }
+        else
+        {
+            game.IsGameOver = true;
+            game.IsBusted = true;
+
+            var player = await _playerRepo.GetOrCreateAsync(userId);
+            player.HiloGamesPlayed++;
+            player.HiloLosses++;
+            player.HiloTotalMoneyLost += game.Bet;
+
+            await _playerRepo.UpdateAsync(player);
+            _sessionManager.RemoveHiloGame(userId);
+            await _historyRepo.UpdateToCompletedAsync(game.Id);
+
+            return Result<HiloGameState>.Success(game);
+        }
+    }
+
+    public async Task<Result<HiloGameState>> CashoutHiloAsync(ulong userId)
+    {
+        if (!_sessionManager.TryGetHiloGame(userId, out var game) || game is null)
+            return Result<HiloGameState>.Failure("Игра не найдена.");
+
+        if (game.DrawnCards.Count <= 1)
+            return Result<HiloGameState>.Failure("Сделайте хотя бы один выбор!");
+
+        game.IsGameOver = true;
+        game.IsCashedOut = true;
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+
+        player.Balance += game.CurrentPayout;
+        player.HiloGamesPlayed++;
+        player.HiloWins++;
+        player.HiloTotalMoneyWon += (game.CurrentPayout - game.Bet);
+
+        await _playerRepo.UpdateAsync(player);
+        _sessionManager.RemoveHiloGame(userId);
+        await _historyRepo.UpdateToCompletedAsync(game.Id);
+
+        return Result<HiloGameState>.Success(game);
+    }
 }

@@ -18,7 +18,12 @@ public interface IBlackjackService
     Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier);
     Task<Result<(string ServerSeedHash, string ClientSeed)>> GetNextSeedInfoAsync(ulong userId);
     Task<Result<DiceGameState>> PlayDiceAsync(ulong userId, int bet, int min, int max);
+
     Task<Result<MinesweeperGameState>> StartMinesweeperAsync(ulong userId, int bet, int minesCount);
     Task<Result<MinesweeperGameState>> ClickMinesweeperAsync(ulong userId, int tileIndex);
     Task<Result<MinesweeperGameState>> CashoutMinesweeperAsync(ulong userId);
+
+    Task<Result<HiloGameState>> StartHiloAsync(ulong userId, int bet);
+    Task<Result<HiloGameState>> GuessHiloAsync(ulong userId, string guess);
+    Task<Result<HiloGameState>> CashoutHiloAsync(ulong userId);
 }

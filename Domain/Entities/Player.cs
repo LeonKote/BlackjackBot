@@ -39,4 +39,11 @@ public class Player
     public int MinesLosses { get; set; }
     public long MinesTotalMoneyWon { get; set; }
     public long MinesTotalMoneyLost { get; set; }
+
+    // Статистика Выше-Ниже
+    public int HiloGamesPlayed { get; set; }
+    public int HiloWins { get; set; }
+    public int HiloLosses { get; set; }
+    public long HiloTotalMoneyWon { get; set; }
+    public long HiloTotalMoneyLost { get; set; }
 }

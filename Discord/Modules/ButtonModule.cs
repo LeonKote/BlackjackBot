@@ -179,4 +179,54 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
+
+    [ComponentInteraction("hilo_guess")]
+    public async Task HiloGuessAsync(ulong userId, string guess)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.GuessHiloAsync(userId, guess);
+        if (result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+            {
+                msg.Embeds = [DiscordMapper.BuildHiloEmbed(result.Value!)];
+                msg.Components = DiscordMapper.BuildHiloComponents(result.Value!);
+            }));
+        }
+        else await SendErrorAsync(result.Error);
+    }
+
+    [ComponentInteraction("hilo_cashout")]
+    public async Task HiloCashoutAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это не ваша игра!"); return; }
+
+        var result = await _blackjackService.CashoutHiloAsync(userId);
+        if (result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+            {
+                msg.Embeds = [DiscordMapper.BuildHiloEmbed(result.Value!)];
+                msg.Components = DiscordMapper.BuildHiloComponents(result.Value!);
+            }));
+        }
+        else await SendErrorAsync(result.Error);
+    }
+
+    [ComponentInteraction("profile_hilo")]
+    public async Task ProfileHiloAsync(ulong userId)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
+
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
+        {
+            msg.Embeds = [DiscordMapper.BuildProfileHiloEmbed(Context.User, player)];
+            msg.Components = DiscordMapper.BuildProfileComponents(userId);
+        }));
+    }
 }

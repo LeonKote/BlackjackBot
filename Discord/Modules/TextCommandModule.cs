@@ -33,8 +33,9 @@ public class TextCommandModule : CommandModule<CommandContext>
 
         bool hasBj = _sessionManager.TryGetGame(Context.Message.Author.Id, out var bjGame);
         bool hasMines = _sessionManager.TryGetMinesGame(Context.Message.Author.Id, out var minesGame);
+        bool hasHilo = _sessionManager.TryGetHiloGame(Context.Message.Author.Id, out var hiloGame); // Новое
 
-        if (!hasBj && !hasMines)
+        if (!hasBj && !hasMines && !hasHilo)
         {
             await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
             {
@@ -59,6 +60,11 @@ public class TextCommandModule : CommandModule<CommandContext>
         {
             reply.Embeds = [DiscordMapper.BuildMinesweeperEmbed(minesGame!)];
             reply.Components = DiscordMapper.BuildMinesweeperComponents(minesGame!);
+        }
+        else if (hasHilo)
+        {
+            reply.Embeds = [DiscordMapper.BuildHiloEmbed(hiloGame!)];
+            reply.Components = DiscordMapper.BuildHiloComponents(hiloGame!);
         }
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
@@ -238,6 +244,28 @@ public class TextCommandModule : CommandModule<CommandContext>
             Content = $"<@{Context.Message.Author.Id}>",
             Embeds = [DiscordMapper.BuildMinesweeperEmbed(game)],
             Components = DiscordMapper.BuildMinesweeperComponents(game),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("hilo")]
+    public async Task HiloAsync(int bet)
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.StartHiloAsync(Context.Message.Author.Id, bet);
+        if (!result.IsSuccess)
+        {
+            await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {result.Error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+            return;
+        }
+
+        var game = result.Value!;
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Content = $"<@{Context.Message.Author.Id}>",
+            Embeds = [DiscordMapper.BuildHiloEmbed(game)],
+            Components = DiscordMapper.BuildHiloComponents(game),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }

@@ -15,4 +15,9 @@ public interface IGameSessionManager
     bool TryGetMinesGame(ulong userId, out MinesweeperGameState? game);
     bool TryAddMinesGame(MinesweeperGameState game);
     void RemoveMinesGame(ulong userId);
+
+    // Выше-Ниже
+    bool TryGetHiloGame(ulong userId, out HiloGameState? game);
+    bool TryAddHiloGame(HiloGameState game);
+    void RemoveHiloGame(ulong userId);
 }

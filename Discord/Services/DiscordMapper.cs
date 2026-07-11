@@ -140,6 +140,9 @@ public static class DiscordMapper
                 new ButtonProperties($"profile_crash:{userId}", "Краш", ButtonStyle.Danger),
                 new ButtonProperties($"profile_dice:{userId}", "Дайс", ButtonStyle.Success),
                 new ButtonProperties($"profile_mines:{userId}", "Сапёр", ButtonStyle.Secondary) // <-- Новая кнопка
+            ]),
+            new ActionRowProperties([
+                new ButtonProperties($"profile_hilo:{userId}", "Выше-Ниже", ButtonStyle.Primary)
             ])
         ];
     }
@@ -225,6 +228,29 @@ mines = [t[1] for t in tiles] # Отсортированные индексы
 
 print('Позиции бомб (в зависимости от их количества, берите первые N чисел):')
 print(mines)";
+        }
+        else if (history.GameType == "HiLo")
+        {
+            pythonCode = $@"import hashlib
+
+server = '{history.ServerSeed}'
+client = '{history.ClientSeed}'
+game_id = {history.Id}
+
+suits = ['♥️', '♦️', '♣️', '♠️']
+ranks = ['2','3','4','5','6','7','8','9','10','J','Q','K','A']
+
+print('Выпавшие карты:')
+for round_idx in range(10): # Показываем первые 10 выданных карт
+    s = f'{{server}}:{{client}}:{{game_id}}:{{round_idx}}'
+    h_hex = hashlib.sha256(s.encode()).hexdigest()[:8]
+    h = int(h_hex, 16)
+    card_index = h % 52
+    
+    suit = suits[card_index // 13]
+    rank = ranks[(card_index % 13)]
+    
+    print(f'Раунд {{round_idx}}: {{suit}}{{rank}}')";
         }
         else
         {
@@ -482,6 +508,83 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
                 new() { Name = "📈 Винрейт", Value = $"{minesWinrate}%", Inline = true },
                 new() { Name = "💵 Выиграно", Value = $"+{player.MinesTotalMoneyWon:N0}", Inline = true },
                 new() { Name = "💸 Проиграно", Value = $"-{player.MinesTotalMoneyLost:N0}", Inline = true }
+            ]
+        };
+    }
+
+    public static EmbedProperties BuildHiloEmbed(HiloGameState game)
+    {
+        Color color = new Color(0x3498DB);
+        string resultStr = "Угадайте, какой будет следующая карта.";
+
+        if (game.IsGameOver)
+        {
+            color = game.IsCashedOut ? new Color(0x98FB98) : new Color(0xFFB6C1);
+            resultStr = game.IsCashedOut
+                ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
+                : $"💥 Вы не угадали! Ставка проиграна.";
+        }
+
+        // Показываем максимум 8 последних карт, чтобы не перегружать интерфейс длинными сессиями
+        string history = string.Join(" ➡️ ", game.DrawnCards.TakeLast(8));
+
+        return new EmbedProperties
+        {
+            Title = $"🃏 Выше-Ниже (ID: {game.Id})",
+            Color = color,
+            Description = $"""
+            💰 **Ставка:** {game.Bet}
+            ✖️ **Текущий множитель:** {game.CurrentMultiplier}x
+            💵 **Возможный выигрыш:** {game.CurrentPayout}
+            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+
+            🃏 **Карты:** {history}
+
+            **Результат:** {resultStr}
+            """
+        };
+    }
+
+    public static List<ActionRowProperties> BuildHiloComponents(HiloGameState game)
+    {
+        if (game.IsGameOver) return [];
+
+        Card currentCard = game.DrawnCards.Last();
+        int rankValue = (int)currentCard.Rank;
+
+        // Высчитываем и показываем игроку вероятности выигрыша на кнопке!
+        double probHi = (15.0 - rankValue) / 13.0;
+        double probLo = (rankValue - 1.0) / 13.0;
+
+        return [
+            new ActionRowProperties([
+                new ButtonProperties($"hilo_guess:{game.UserId}:hi", $"⬆️ Выше или равно ({(probHi * 100):0}%)", ButtonStyle.Primary),
+                new ButtonProperties($"hilo_guess:{game.UserId}:lo", $"⬇️ Ниже или равно ({(probLo * 100):0}%)", ButtonStyle.Danger)
+            ]),
+            new ActionRowProperties([
+                new ButtonProperties($"hilo_cashout:{game.UserId}", $"💰 Забрать {game.CurrentPayout}", ButtonStyle.Success)
+                {
+                    Disabled = game.DrawnCards.Count <= 1
+                }
+            ])
+        ];
+    }
+
+    public static EmbedProperties BuildProfileHiloEmbed(User user, Player player)
+    {
+        int hiloWinrate = player.HiloGamesPlayed > 0 ? (int)Math.Round((double)player.HiloWins / player.HiloGamesPlayed * 100) : 0;
+
+        return new EmbedProperties
+        {
+            Title = $"🃏 Статистика Выше-Ниже ({user.Username})",
+            Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
+            Color = new Color(0x9B59B6),
+            Fields = [
+                new() { Name = "🎮 Сыграно", Value = player.HiloGamesPlayed.ToString(), Inline = true },
+                new() { Name = "🏆 Побед / 💀 Поражений", Value = $"{player.HiloWins} / {player.HiloLosses}", Inline = true },
+                new() { Name = "📈 Винрейт", Value = $"{hiloWinrate}%", Inline = true },
+                new() { Name = "💵 Выиграно", Value = $"+{player.HiloTotalMoneyWon:N0}", Inline = true },
+                new() { Name = "💸 Проиграно", Value = $"-{player.HiloTotalMoneyLost:N0}", Inline = true }
             ]
         };
     }

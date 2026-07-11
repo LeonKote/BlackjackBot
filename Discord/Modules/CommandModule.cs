@@ -4,6 +4,7 @@ using BlackjackBot.Domain.Interfaces;
 using NetCord;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
+using NetCord.Services.Commands;
 
 namespace BlackjackBot.Discord.Modules;
 
@@ -33,8 +34,9 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 
         bool hasBj = _sessionManager.TryGetGame(Context.User.Id, out var bjGame);
         bool hasMines = _sessionManager.TryGetMinesGame(Context.User.Id, out var minesGame);
+        bool hasHilo = _sessionManager.TryGetHiloGame(Context.User.Id, out var hiloGame);
 
-        if (!hasBj && !hasMines)
+        if (!hasBj && !hasMines && !hasHilo)
         {
             await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
                 new InteractionMessageProperties { Content = "❌ У вас нет активной игры в данный момент.", Flags = MessageFlags.Ephemeral }));
@@ -55,6 +57,11 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         {
             props.Embeds = [DiscordMapper.BuildMinesweeperEmbed(minesGame!)];
             props.Components = DiscordMapper.BuildMinesweeperComponents(minesGame!);
+        }
+        else if (hasHilo)
+        {
+            props.Embeds = [DiscordMapper.BuildHiloEmbed(hiloGame!)];
+            props.Components = DiscordMapper.BuildHiloComponents(hiloGame!);
         }
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(props));
@@ -237,6 +244,28 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Content = $"<@{Context.User.Id}>",
             Embeds = [DiscordMapper.BuildMinesweeperEmbed(game)],
             Components = DiscordMapper.BuildMinesweeperComponents(game)
+        }));
+    }
+
+    [SlashCommand("hilo", "Сыграть в Выше-Ниже")]
+    public async Task HiloAsync(int bet)
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.StartHiloAsync(Context.User.Id, bet);
+        if (!result.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
+                new InteractionMessageProperties { Content = $"❌ {result.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        var game = result.Value!;
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Content = $"<@{Context.User.Id}>",
+            Embeds = [DiscordMapper.BuildHiloEmbed(game)],
+            Components = DiscordMapper.BuildHiloComponents(game)
         }));
     }
 }
