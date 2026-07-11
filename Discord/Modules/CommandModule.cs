@@ -31,19 +31,33 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
 
-        if (!_sessionManager.TryGetGame(Context.User.Id, out var game) || game is null)
+        bool hasBj = _sessionManager.TryGetGame(Context.User.Id, out var bjGame);
+        bool hasMines = _sessionManager.TryGetMinesGame(Context.User.Id, out var minesGame);
+
+        if (!hasBj && !hasMines)
         {
             await Context.Interaction.SendResponseAsync(InteractionCallback.Message(
                 new InteractionMessageProperties { Content = "❌ У вас нет активной игры в данный момент.", Flags = MessageFlags.Ephemeral }));
             return;
         }
 
-        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        var props = new InteractionMessageProperties
         {
-            Content = $"<@{Context.User.Id}> (Игра восстановлена)",
-            Embeds = [DiscordMapper.BuildEmbed(game)],
-            Components = DiscordMapper.BuildComponents(game)
-        }));
+            Content = $"<@{Context.User.Id}> (Игра восстановлена)"
+        };
+
+        if (hasBj)
+        {
+            props.Embeds = [DiscordMapper.BuildEmbed(bjGame!)];
+            props.Components = DiscordMapper.BuildComponents(bjGame!);
+        }
+        else if (hasMines)
+        {
+            props.Embeds = [DiscordMapper.BuildMinesweeperEmbed(minesGame!)];
+            props.Components = DiscordMapper.BuildMinesweeperComponents(minesGame!);
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(props));
     }
 
     [SlashCommand("profile", "Профиль и статистика игрока")]

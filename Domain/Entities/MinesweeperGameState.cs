@@ -38,6 +38,7 @@ public class MinesweeperGameState
             remainingTotal--;
         }
 
-        return Math.Round(0.99 / prob, 2);
+        // Убрали House Edge: теперь 1.0 вместо 0.99
+        return Math.Round(1.0 / prob, 2);
     }
 }

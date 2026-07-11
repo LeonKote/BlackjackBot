@@ -334,17 +334,16 @@ public class BlackjackService : IBlackjackService
 
         player.Balance -= bet;
 
-        // Provably Fair алгоритм для Краша (Стандарт казино Stake / Bustabit)
+        // Provably Fair алгоритм для Краша БЕЗ House Edge
         byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}"));
-        string hex = Convert.ToHexString(hashBytes).ToLower()[..13]; // Берем первые 52 бита хеша
+        string hex = Convert.ToHexString(hashBytes).ToLower()[..13];
         long h = Convert.ToInt64(hex, 16);
         long e = (long)Math.Pow(2, 52);
 
-        double actualMultiplier = 1.00;
-        if (h % 20 != 0) // 5% шанс моментального краша на 1.00 (House Edge казино)
-        {
-            actualMultiplier = Math.Floor((100.0 * e - h) / (e - h)) / 100.0;
-        }
+        // Больше нет 5% шанса моментального взрыва (h % 20 != 0).
+        // Чистая математическая модель распределения множителей:
+        double actualMultiplier = Math.Floor((100.0 * e) / (e - h)) / 100.0;
+        if (actualMultiplier < 1.00) actualMultiplier = 1.00;
 
         var game = new CrashGameState
         {
@@ -435,8 +434,8 @@ public class BlackjackService : IBlackjackService
         long h = Convert.ToInt64(hex, 16);
         int rolledNumber = (int)(h % 100) + 1;
 
-        // Считаем множитель (99.0 / шанс) с округлением до 2 знаков
-        double multiplier = Math.Round(99.0 / chance, 2);
+        // Считаем множитель (100.0 / шанс) с округлением до 2 знаков БЕЗ House Edge
+        double multiplier = Math.Round(100.0 / chance, 2);
 
         var game = new DiceGameState
         {

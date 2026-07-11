@@ -31,8 +31,10 @@ public class TextCommandModule : CommandModule<CommandContext>
     {
         if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
 
-        // Проверяем, есть ли активная игра
-        if (!_sessionManager.TryGetGame(Context.Message.Author.Id, out var game) || game is null)
+        bool hasBj = _sessionManager.TryGetGame(Context.Message.Author.Id, out var bjGame);
+        bool hasMines = _sessionManager.TryGetMinesGame(Context.Message.Author.Id, out var minesGame);
+
+        if (!hasBj && !hasMines)
         {
             await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
             {
@@ -42,14 +44,22 @@ public class TextCommandModule : CommandModule<CommandContext>
             return;
         }
 
-        // Отправляем текущее состояние игры заново
         var reply = new MessageProperties
         {
             Content = $"<@{Context.Message.Author.Id}> (Игра восстановлена)",
-            Embeds = [DiscordMapper.BuildEmbed(game)],
-            Components = DiscordMapper.BuildComponents(game),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         };
+
+        if (hasBj)
+        {
+            reply.Embeds = [DiscordMapper.BuildEmbed(bjGame!)];
+            reply.Components = DiscordMapper.BuildComponents(bjGame!);
+        }
+        else if (hasMines)
+        {
+            reply.Embeds = [DiscordMapper.BuildMinesweeperEmbed(minesGame!)];
+            reply.Components = DiscordMapper.BuildMinesweeperComponents(minesGame!);
+        }
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, reply);
     }

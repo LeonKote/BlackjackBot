@@ -186,10 +186,8 @@ h_hex = hashlib.sha256(s.encode()).hexdigest()[:13]
 h = int(h_hex, 16)
 e = 2**52
 
-if h % 20 == 0:
-    multiplier = 1.00
-else:
-    multiplier = math.floor((100.0 * e - h) / (e - h)) / 100.0
+# Расчет без House Edge
+multiplier = math.floor((100.0 * e) / (e - h)) / 100.0
 
 print(f'Итоговый множитель: {{multiplier}}x')";
         }
