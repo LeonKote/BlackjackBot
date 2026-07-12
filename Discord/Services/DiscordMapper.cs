@@ -10,7 +10,6 @@ public static class DiscordMapper
     {
         var fields = new List<EmbedFieldProperties>();
 
-        // Отрисовка всех рук игрока
         for (int i = 0; i < game.Hands.Count; i++)
         {
             var hand = game.Hands[i];
@@ -37,7 +36,6 @@ public static class DiscordMapper
             fields.Add(new() { Name = $"{handName} ({hand.Score}){status}", Value = string.Join(" ", hand.Cards), Inline = true });
         }
 
-        // Отрисовка руки дилера
         if (!game.IsGameOver)
         {
             int visibleScore = GameState.CalculateScore([game.DealerHand[0]]);
@@ -48,13 +46,10 @@ public static class DiscordMapper
             fields.Add(new() { Name = $"Рука дилера ({game.DealerScore})", Value = string.Join(" ", game.DealerHand), Inline = true });
         }
 
-        Color color = new Color(0x87CEFA);
+        Color color = new Color(0x2980B9); // Темно-синий вместо светлого
         int totalBet = game.Hands.Sum(h => h.Bet);
-
-        // Убрали ID отсюда
         string description = $"💰 **Общая ставка:** {totalBet}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
 
-        // Отрисовка общих результатов в конце
         if (game.IsGameOver)
         {
             int totalPayout = game.Hands.Sum(h => h.Status switch {
@@ -65,7 +60,8 @@ public static class DiscordMapper
             });
             int netProfit = totalPayout - totalBet;
 
-            color = netProfit > 0 ? new Color(0x98FB98) : (netProfit == 0 ? new Color(0xFFE4B5) : new Color(0xFFB6C1));
+            // Более темные, сочные цвета: Зеленый, Оранжевый, Красный
+            color = netProfit > 0 ? new Color(0x2ECC71) : (netProfit == 0 ? new Color(0xF39C12) : new Color(0xE74C3C));
 
             string result = netProfit > 0 ? $"Вы выиграли **{totalPayout}** монет!" :
                             (netProfit == 0 ? "Ничья! Ставки возвращены." : "Вы проиграли свои ставки.");
@@ -73,7 +69,6 @@ public static class DiscordMapper
             description += $"\n\n**Результат:** {result}";
         }
 
-        // ВАЖНО: Добавили ID прямо в Title
         return new EmbedProperties { Title = $"🃏 Блекджек (ID: {game.Id})", Description = description, Color = color, Fields = fields };
     }
 
@@ -295,7 +290,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
     public static EmbedProperties BuildCrashEmbed(CrashGameState game)
     {
-        Color color = game.IsWin ? new Color(0x98FB98) : new Color(0xFFB6C1);
+        // Темный зеленый или темный красный
+        Color color = game.IsWin ? new Color(0x2ECC71) : new Color(0xE74C3C);
         string resultStr = game.IsWin
             ? $"✅ Вы успешно вывели на **{game.TargetMultiplier}x** и выиграли **{game.Payout}** монет!"
             : $"💥 Ракета взорвалась на **{game.ActualMultiplier}x**. Вы не успели вывести ставку.";
@@ -368,7 +364,7 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
     public static EmbedProperties BuildDiceEmbed(DiceGameState game)
     {
-        Color color = game.IsWin ? new Color(0x98FB98) : new Color(0xFFB6C1);
+        Color color = game.IsWin ? new Color(0x2ECC71) : new Color(0xE74C3C);
         string resultStr = game.IsWin
             ? $"✅ Выпало число **{game.RolledNumber}**! Вы выиграли **{game.Payout}** монет!"
             : $"❌ Выпало число **{game.RolledNumber}**. Ставка проиграна.";
@@ -411,12 +407,12 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
     public static EmbedProperties BuildMinesweeperEmbed(MinesweeperGameState game)
     {
-        Color color = new Color(0x3498DB);
+        Color color = new Color(0x2980B9);
         string resultStr = "Осторожно открывайте плитки или заберите выигрыш.";
 
         if (game.IsGameOver)
         {
-            color = game.IsCashedOut ? new Color(0x98FB98) : new Color(0xFFB6C1);
+            color = game.IsCashedOut ? new Color(0x2ECC71) : new Color(0xE74C3C);
             resultStr = game.IsCashedOut
                 ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
                 : $"💥 Вы нарвались на мину! Ставка проиграна.";
@@ -518,18 +514,17 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
     public static EmbedProperties BuildHiloEmbed(HiloGameState game)
     {
-        Color color = new Color(0x3498DB);
+        Color color = new Color(0x2980B9);
         string resultStr = "Угадайте, какой будет следующая карта.";
 
         if (game.IsGameOver)
         {
-            color = game.IsCashedOut ? new Color(0x98FB98) : new Color(0xFFB6C1);
+            color = game.IsCashedOut ? new Color(0x2ECC71) : new Color(0xE74C3C);
             resultStr = game.IsCashedOut
                 ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
                 : $"💥 Вы не угадали! Ставка проиграна.";
         }
 
-        // Показываем максимум 8 последних карт, чтобы не перегружать интерфейс длинными сессиями
         string history = string.Join(" ➡️ ", game.DrawnCards.TakeLast(8));
 
         return new EmbedProperties
