@@ -26,4 +26,7 @@ public interface IBlackjackService
     Task<Result<HiloGameState>> StartHiloAsync(ulong userId, int bet);
     Task<Result<HiloGameState>> GuessHiloAsync(ulong userId, string guess);
     Task<Result<HiloGameState>> CashoutHiloAsync(ulong userId);
+
+    Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimDailyAsync(ulong userId);
+    Task<List<Player>> GetTopPlayersAsync(int count = 10);
 }

@@ -708,4 +708,26 @@ public class BlackjackService : IBlackjackService
 
         return Result<HiloGameState>.Success(game);
     }
+
+    public async Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimDailyAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+
+        // Проверяем, прошло ли 24 часа
+        if ((DateTimeOffset.UtcNow - player.LastDaily).TotalHours < 24)
+        {
+            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, player.LastDaily.AddHours(24)));
+        }
+
+        player.Balance += 2500; // Дневной бонус (2500 монет)
+        player.LastDaily = DateTimeOffset.UtcNow;
+        await _playerRepo.UpdateAsync(player);
+
+        return Result<(int, DateTimeOffset)>.Success((player.Balance, default));
+    }
+
+    public async Task<List<Player>> GetTopPlayersAsync(int count = 10)
+    {
+        return await _playerRepo.GetTopPlayersAsync(count);
+    }
 }

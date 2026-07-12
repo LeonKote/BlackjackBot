@@ -92,7 +92,7 @@ public class TextCommandModule : CommandModule<CommandContext>
         var result = await _blackjackService.ClaimHourlyAsync(Context.Message.Author.Id);
 
         string response = result.IsSuccess
-            ? $"<@{Context.Message.Author.Id}> наклянчил косарь нищук"
+            ? DiscordMapper.GetRandomHourlyMessage(Context.Message.Author.Id)
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
@@ -266,6 +266,38 @@ public class TextCommandModule : CommandModule<CommandContext>
             Content = $"<@{Context.Message.Author.Id}>",
             Embeds = [DiscordMapper.BuildHiloEmbed(game)],
             Components = DiscordMapper.BuildHiloComponents(game),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("daily")]
+    public async Task DailyAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var result = await _blackjackService.ClaimDailyAsync(Context.Message.Author.Id);
+
+        string response = result.IsSuccess
+            ? DiscordMapper.GetRandomDailyMessage(Context.Message.Author.Id)
+            : $"⏳ Ежедневный бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Content = response,
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("top", "leaderboard")]
+    public async Task TopAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
+
+        var topPlayers = await _blackjackService.GetTopPlayersAsync(10);
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildLeaderboardEmbed(topPlayers)],
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }

@@ -33,4 +33,14 @@ public class PlayerRepository : IPlayerRepository
         db.Players.Update(player);
         await db.SaveChangesAsync();
     }
+
+    public async Task<List<Player>> GetTopPlayersAsync(int count = 10)
+    {
+        using var db = _dbFactory.CreateDbContext();
+        // Сортируем по убыванию баланса и берем первые N записей
+        return await db.Players
+            .OrderByDescending(p => p.Balance)
+            .Take(count)
+            .ToListAsync();
+    }
 }

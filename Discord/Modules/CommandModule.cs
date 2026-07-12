@@ -88,7 +88,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         var result = await _blackjackService.ClaimHourlyAsync(Context.User.Id);
 
         string response = result.IsSuccess
-            ? $"<@{Context.User.Id}> наклянчил косарь нищук"
+            ? DiscordMapper.GetRandomHourlyMessage(Context.User.Id)
             : $"⏳ Бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
 
         var messageProps = new InteractionMessageProperties { Content = response };
@@ -266,6 +266,36 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Content = $"<@{Context.User.Id}>",
             Embeds = [DiscordMapper.BuildHiloEmbed(game)],
             Components = DiscordMapper.BuildHiloComponents(game)
+        }));
+    }
+
+    [SlashCommand("daily", "Получить большой ежедневный бонус (раз в 24 часа)")]
+    public async Task DailyAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var result = await _blackjackService.ClaimDailyAsync(Context.User.Id);
+
+        string response = result.IsSuccess
+            ? DiscordMapper.GetRandomDailyMessage(Context.User.Id)
+            : $"⏳ Ежедневный бонус будет доступен <t:{result.Value.NextAvailable.ToUnixTimeSeconds()}:R>";
+
+        var messageProps = new InteractionMessageProperties { Content = response };
+        if (!result.IsSuccess) messageProps.Flags = MessageFlags.Ephemeral;
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(messageProps));
+    }
+
+    [SlashCommand("top", "Показать таблицу лидеров по балансу")]
+    public async Task TopAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var topPlayers = await _blackjackService.GetTopPlayersAsync(10);
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildLeaderboardEmbed(topPlayers)]
         }));
     }
 }

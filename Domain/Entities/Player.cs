@@ -5,6 +5,7 @@ public class Player
     public ulong Id { get; set; }
     public int Balance { get; set; }
     public DateTimeOffset LastHourly { get; set; }
+    public DateTimeOffset LastDaily { get; set; } // <-- НОВОЕ ПОЛЕ
 
     public string ClientSeed { get; set; } = "default_seed";
     public string NextServerSeed { get; set; } = "";

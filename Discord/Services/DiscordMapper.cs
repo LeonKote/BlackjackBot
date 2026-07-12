@@ -333,7 +333,9 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
                     Inline = false },
                 new() { Name = "👤 Профиль и Экономика", Value =
                     "`!profile` — Посмотреть свой баланс и статистику.\n" +
-                    "`!hourly` — Получить бесплатные монеты (раз в час).",
+                    "`!top` — Посмотреть таблицу лидеров по балансу.\n" +
+                    "`!hourly` — Получить бонус 1000 монет (раз в час).\n" +
+                    "`!daily` — Получить бонус 5000 монет (раз в 24 часа).",
                     Inline = false },
                 new() { Name = "🛡️ Честная игра (Provably Fair)", Value =
                     "`!proof <ID>` — Проверить честность сыгранной игры по её ID.\n" +
@@ -589,5 +591,50 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
                 new() { Name = "💸 Проиграно", Value = $"-{player.HiloTotalMoneyLost:N0}", Inline = true }
             ]
         };
+    }
+
+    public static EmbedProperties BuildLeaderboardEmbed(List<Player> topPlayers)
+    {
+        // Генерируем строки. 1, 2 и 3 место получают красивые медали.
+        var description = string.Join("\n", topPlayers.Select((p, i) =>
+        {
+            string medal = i switch { 0 => "🥇", 1 => "🥈", 2 => "🥉", _ => $"**{i + 1}.**" };
+            return $"{medal} <@{p.Id}> — 💰 **{p.Balance:N0}** монет";
+        }));
+
+        if (string.IsNullOrWhiteSpace(description)) description = "Пока никого нет.";
+
+        return new EmbedProperties
+        {
+            Title = "🏆 Топ-10 богачей сервера",
+            Color = new Color(0xF1C40F),
+            Description = description
+        };
+    }
+
+    public static string GetRandomHourlyMessage(ulong userId)
+    {
+        string[] quotes = [
+            $"<@{userId}> наклянчил косарь нищук.",
+            $"Швырнул 1000 монет в лицо <@{userId}>. Иди лудомань.",
+            $"<@{userId}> опять просит милостыню. Выдал 1000 мелочью.",
+            $"Очередная подачка для <@{userId}>: 1000 монет.",
+            $"Сжалился над <@{userId}> и кинул косарь на пропитание.",
+            $"Держи косарь, <@{userId}>, и не плачь когда сольешь его в краше."
+        ];
+        return quotes[Random.Shared.Next(quotes.Length)];
+    }
+
+    public static string GetRandomDailyMessage(ulong userId)
+    {
+        string[] quotes = [
+            $"Одобрил заявку <@{userId}> на пособие по лудомании (+2500 монет).",
+            $"<@{userId}> получил 2500 на бедность. Гуляй, рванина!",
+            $"Целых 2500 для <@{userId}>! Хватит ровно на две секунды в сапёре.",
+            $"Большой куш для нищука. <@{userId}> выпросил 2500 монет.",
+            $"С барского плеча выделил 2500 для <@{userId}>. До завтра не возвращайся.",
+            $"Вытряхнул из кассы 2500 монет для <@{userId}>. Не слей всё за одну раздачу."
+        ];
+        return quotes[Random.Shared.Next(quotes.Length)];
     }
 }
