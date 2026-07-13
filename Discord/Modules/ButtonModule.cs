@@ -78,13 +78,15 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileGeneralAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        // Получаем информацию о пользователе напрямую из Discord
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileGeneralEmbed(Context.User, player)];
-            msg.Components = DiscordMapper.BuildProfileComponents(userId); // Оставляем кнопки
+            msg.Embeds = [DiscordMapper.BuildProfileGeneralEmbed(targetUser, player)];
+            msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
 
@@ -92,12 +94,13 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileBjAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileBjEmbed(Context.User, player)];
+            msg.Embeds = [DiscordMapper.BuildProfileBjEmbed(targetUser, player)];
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
@@ -106,12 +109,13 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileCrashAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileCrashEmbed(Context.User, player)];
+            msg.Embeds = [DiscordMapper.BuildProfileCrashEmbed(targetUser, player)];
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
@@ -120,12 +124,13 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileDiceAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileDiceEmbed(Context.User, player)];
+            msg.Embeds = [DiscordMapper.BuildProfileDiceEmbed(targetUser, player)];
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
@@ -170,12 +175,13 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileMinesAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileMinesEmbed(Context.User, player)];
+            msg.Embeds = [DiscordMapper.BuildProfileMinesEmbed(targetUser, player)];
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
@@ -220,12 +226,13 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     public async Task ProfileHiloAsync(ulong userId)
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
-        if (Context.User.Id != userId) { await SendErrorAsync("Это чужой профиль!"); return; }
 
+        var targetUser = await Context.Client.Rest.GetUserAsync(userId);
         var player = await _playerRepo.GetOrCreateAsync(userId);
+
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg =>
         {
-            msg.Embeds = [DiscordMapper.BuildProfileHiloEmbed(Context.User, player)];
+            msg.Embeds = [DiscordMapper.BuildProfileHiloEmbed(targetUser, player)];
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }

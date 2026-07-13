@@ -71,15 +71,18 @@ public class TextCommandModule : CommandModule<CommandContext>
     }
 
     [Command("profile", "stats")]
-    public async Task ProfileAsync()
+    public async Task ProfileAsync(User? targetUser = null) // <-- Добавили необязательный параметр
     {
         if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
 
-        var player = await _playerRepo.GetOrCreateAsync(Context.Message.Author.Id);
+        // Если пользователя не указали, используем автора сообщения
+        targetUser ??= Context.Message.Author;
+
+        var player = await _playerRepo.GetOrCreateAsync(targetUser.Id);
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
         {
-            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(Context.Message.Author, player)],
-            Components = DiscordMapper.BuildProfileComponents(Context.Message.Author.Id), // Выводим кнопки
+            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(targetUser, player)],
+            Components = DiscordMapper.BuildProfileComponents(targetUser.Id),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }

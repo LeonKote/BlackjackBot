@@ -68,15 +68,18 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
     }
 
     [SlashCommand("profile", "Профиль и статистика игрока")]
-    public async Task ProfileAsync()
+    public async Task ProfileAsync([SlashCommandParameter(Description = "Игрок (необязательно)")] User? targetUser = null) // <-- Добавили параметр
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
 
-        var player = await _playerRepo.GetOrCreateAsync(Context.User.Id);
+        // Если пользователя не выбрали, используем того, кто вызвал команду
+        targetUser ??= Context.User;
+
+        var player = await _playerRepo.GetOrCreateAsync(targetUser.Id);
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
         {
-            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(Context.User, player)],
-            Components = DiscordMapper.BuildProfileComponents(Context.User.Id) // Выводим кнопки
+            Embeds = [DiscordMapper.BuildProfileGeneralEmbed(targetUser, player)],
+            Components = DiscordMapper.BuildProfileComponents(targetUser.Id)
         }));
     }
 
