@@ -71,12 +71,45 @@ public class TextCommandModule : CommandModule<CommandContext>
     }
 
     [Command("profile", "stats")]
-    public async Task ProfileAsync(User? targetUser = null) // <-- Добавили необязательный параметр
+    public async Task ProfileAsync([CommandParameter(Remainder = true)] string? arg = null)
     {
         if (!_channelValidator.IsAllowed(Context.Message.ChannelId)) return;
 
-        // Если пользователя не указали, используем автора сообщения
-        targetUser ??= Context.Message.Author;
+        User targetUser = Context.Message.Author;
+
+        // Если после команды что-то написали (например пинг или ID)
+        if (!string.IsNullOrWhiteSpace(arg))
+        {
+            // Ищем в тексте последовательность цифр длиной от 17 до 20 (это стандартный ID Discord)
+            // Он идеально достанет ID как из текста "123456789...", так и из пинга "<@123456789...>"
+            var match = System.Text.RegularExpressions.Regex.Match(arg, @"\d{17,20}");
+
+            if (match.Success && ulong.TryParse(match.Value, out var userId))
+            {
+                try
+                {
+                    targetUser = await Context.Client.Rest.GetUserAsync(userId);
+                }
+                catch
+                {
+                    await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+                    {
+                        Content = "❌ Пользователь не найден. Возможно, бот его не видит.",
+                        MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+                    });
+                    return;
+                }
+            }
+            else
+            {
+                await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+                {
+                    Content = "❌ Укажите корректный пинг пользователя (через @) или его ID.",
+                    MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+                });
+                return;
+            }
+        }
 
         var player = await _playerRepo.GetOrCreateAsync(targetUser.Id);
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
