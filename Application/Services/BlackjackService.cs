@@ -769,7 +769,7 @@ public class BlackjackService : IBlackjackService
         }
 
         // Увеличенная награда для VIP
-        int reward = player.IsVip ? 10000 : 5000;
+        int reward = player.IsVip ? 5000 : 2500;
 
         player.Balance += reward;
         player.LastDaily = DateTimeOffset.UtcNow;
