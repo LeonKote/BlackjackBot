@@ -301,4 +301,97 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
             Embeds = [DiscordMapper.BuildLeaderboardEmbed(topPlayers)]
         }));
     }
+
+    [SlashCommand("shop", "Посмотреть цены на алмазы и премиум-функции")]
+    public async Task ShopAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildShopEmbed()]
+        }));
+    }
+
+    [SlashCommand("vip", "Купить VIP статус на 30 дней за 150 💎")]
+    public async Task VipAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var res = await _blackjackService.PreVipCheckAsync(Context.User.Id);
+        if (!res.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties { Content = $"❌ {res.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Покупка VIP", $"Вы собираетесь приобрести VIP статус на 30 дней.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("vip", Context.User.Id)
+        }));
+    }
+
+    [SlashCommand("booster", "Купить бустер (х2 к прибыли) на следующую игру")]
+    public async Task BoosterAsync([SlashCommandParameter(Description = "Напишите 'mega' для покупки Мега-бустера (без лимитов) за 25 💎")] string type = "")
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        bool isMega = type.ToLower() == "mega";
+        var res = await _blackjackService.PreBoosterCheckAsync(Context.User.Id, isMega);
+        if (!res.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties { Content = $"❌ {res.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        string title = isMega ? "Мега-Бустер x2" : "Обычный Бустер x2";
+        string desc = isMega
+            ? $"Мега-бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры **без ограничений**.\nЦена: **{res.Value} 💎**"
+            : $"Бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры (максимум до +50,000 монет).\nДля покупки Мега-бустера используйте параметр 'mega'.\nЦена: **{res.Value} 💎**";
+        string actionData = isMega ? "megabooster" : "booster";
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed(title, desc)],
+            Components = DiscordMapper.BuildConfirmationComponents(actionData, Context.User.Id)
+        }));
+    }
+
+    [SlashCommand("peek", "Подсмотреть следующие карты в игре (Блекджек / Выше-Ниже)")]
+    public async Task PeekAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var res = await _blackjackService.PrePeekCheckAsync(Context.User.Id);
+        if (!res.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties { Content = $"❌ {res.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Просмотр карт", $"Вы увидите 2 следующие карты в текущей раздаче.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("peek", Context.User.Id)
+        }));
+    }
+
+    [SlashCommand("refund", "Вернуть свою последнюю проигранную ставку (Маховик времени)")]
+    public async Task RefundAsync()
+    {
+        if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
+
+        var res = await _blackjackService.PreRefundCheckAsync(Context.User.Id);
+        if (!res.IsSuccess)
+        {
+            await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties { Content = $"❌ {res.Error}", Flags = MessageFlags.Ephemeral }));
+            return;
+        }
+
+        await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс сумму своей последней проигранной ставки.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("refund", Context.User.Id)
+        }));
+    }
 }

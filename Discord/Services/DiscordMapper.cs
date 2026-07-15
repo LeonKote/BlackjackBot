@@ -14,73 +14,51 @@ public static class DiscordMapper
         {
             var hand = game.Hands[i];
             string handName = game.Hands.Count > 1 ? $"Ваша рука {i + 1}" : "Ваша рука";
-
-            if (game.Hands.Count > 1 && i == game.CurrentHandIndex && !game.IsGameOver)
-                handName = "👉 " + handName;
+            if (game.Hands.Count > 1 && i == game.CurrentHandIndex && !game.IsGameOver) handName = "👉 " + handName;
 
             string status = "";
             if (game.IsGameOver || hand.Status == GameStatus.PlayerBust)
             {
-                status = hand.Status switch
-                {
-                    GameStatus.PlayerBust => " [Перебор]",
-                    GameStatus.DealerBust => " [Победа]",
-                    GameStatus.PlayerWin => " [Победа]",
-                    GameStatus.DealerWin => " [Поражение]",
-                    GameStatus.Push => " [Ничья]",
-                    GameStatus.BlackjackWin => " [Блекджек]",
-                    _ => ""
-                };
+                status = hand.Status switch { GameStatus.PlayerBust => " [Перебор]", GameStatus.DealerBust => " [Победа]", GameStatus.PlayerWin => " [Победа]", GameStatus.DealerWin => " [Поражение]", GameStatus.Push => " [Ничья]", GameStatus.BlackjackWin => " [Блекджек]", _ => "" };
             }
-
             fields.Add(new() { Name = $"{handName} ({hand.Score}){status}", Value = string.Join(" ", hand.Cards), Inline = true });
         }
 
-        if (!game.IsGameOver)
-        {
-            int visibleScore = GameState.CalculateScore([game.DealerHand[0]]);
-            fields.Add(new() { Name = $"Рука дилера ({visibleScore})", Value = $"{game.DealerHand[0]} ❓", Inline = true });
-        }
-        else
-        {
-            fields.Add(new() { Name = $"Рука дилера ({game.DealerScore})", Value = string.Join(" ", game.DealerHand), Inline = true });
-        }
+        if (!game.IsGameOver) fields.Add(new() { Name = $"Рука дилера ({GameState.CalculateScore([game.DealerHand[0]])})", Value = $"{game.DealerHand[0]} ❓", Inline = true });
+        else fields.Add(new() { Name = $"Рука дилера ({game.DealerScore})", Value = string.Join(" ", game.DealerHand), Inline = true });
 
-        Color color = new Color(0x2980B9); // Темно-синий вместо светлого
+        Color color = new Color(0x2980B9);
         int totalBet = game.Hands.Sum(h => h.Bet);
         string description = $"💰 **Общая ставка:** {totalBet}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
 
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
+
         if (game.IsGameOver)
         {
-            int totalPayout = game.Hands.Sum(h => h.Status switch {
-                GameStatus.DealerBust or GameStatus.PlayerWin => h.Bet * 2,
-                GameStatus.BlackjackWin => (int)(h.Bet * 2.5),
-                GameStatus.Push => h.Bet,
-                _ => 0
-            });
+            int totalPayout = game.Hands.Sum(h => h.Status switch { GameStatus.DealerBust or GameStatus.PlayerWin => h.Bet * 2, GameStatus.BlackjackWin => (int)(h.Bet * 2.5), GameStatus.Push => h.Bet, _ => 0 });
             int netProfit = totalPayout - totalBet;
 
-            // Более темные, сочные цвета: Зеленый, Оранжевый, Красный
             color = netProfit > 0 ? new Color(0x2ECC71) : (netProfit == 0 ? new Color(0xF39C12) : new Color(0xE74C3C));
-
-            string result = netProfit > 0 ? $"Вы выиграли **{totalPayout}** монет!" :
-                            (netProfit == 0 ? "Ничья! Ставки возвращены." : "Вы проиграли свои ставки.");
-
+            string result = netProfit > 0 ? $"Вы выиграли **{totalPayout}** монет!" : (netProfit == 0 ? "Ничья! Ставки возвращены." : "Вы проиграли свои ставки.");
             description += $"\n\n**Результат:** {result}";
         }
-
         return new EmbedProperties { Title = $"🃏 Блекджек (ID: {game.Id})", Description = description, Color = color, Fields = fields };
     }
 
     // 1. Главная страница профиля
     public static EmbedProperties BuildProfileGeneralEmbed(User user, Player player)
     {
+        string vipStatus = player.IsVip ? $"\n👑 **VIP Статус:** активен до <t:{player.VipUntil.ToUnixTimeSeconds()}:d>" : "";
+
         return new EmbedProperties
         {
             Title = $"📊 Профиль {user.Username}",
             Thumbnail = new EmbedThumbnailProperties(user.HasAvatar ? user.GetAvatarUrl().ToString() : null),
             Color = new Color(0x9B59B6),
-            Description = $"**💰 Баланс:** {player.Balance} монет\n\n*👇 Нажмите на кнопки ниже, чтобы посмотреть подробную статистику по каждой игре.*"
+            Description = $"**💰 Баланс:** {player.Balance:N0} монет\n" +
+                          $"**💎 Алмазы:** {player.Diamonds:N0}{vipStatus}\n\n" +
+                          $"*👇 Нажмите на кнопки ниже, чтобы посмотреть подробную статистику по каждой игре.*"
         };
     }
 
@@ -290,26 +268,15 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
     public static EmbedProperties BuildCrashEmbed(CrashGameState game)
     {
-        // Темный зеленый или темный красный
         Color color = game.IsWin ? new Color(0x2ECC71) : new Color(0xE74C3C);
-        string resultStr = game.IsWin
-            ? $"✅ Вы успешно вывели на **{game.TargetMultiplier}x** и выиграли **{game.Payout}** монет!"
-            : $"💥 Ракета взорвалась на **{game.ActualMultiplier}x**. Вы не успели вывести ставку.";
+        string resultStr = game.IsWin ? $"✅ Вы успешно вывели на **{game.TargetMultiplier}x** и выиграли **{game.Payout}** монет!" : $"💥 Ракета взорвалась на **{game.ActualMultiplier}x**. Вы не успели вывести ставку.";
 
-        return new EmbedProperties
-        {
-            Title = $"🚀 Краш (ID: {game.Id})",
-            Color = color,
-            Description = $"""
-            💰 **Ставка:** {game.Bet}
-            🎯 **Цель (Автовывод):** {game.TargetMultiplier}x
-            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+        string description = $"💰 **Ставка:** {game.Bet}\n🎯 **Цель (Автовывод):** {game.TargetMultiplier}x\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
-            📈 **Итоговый множитель: {game.ActualMultiplier}x**
-
-            **Результат:** {resultStr}
-            """
-        };
+        description += $"\n\n📈 **Итоговый множитель: {game.ActualMultiplier}x**\n\n**Результат:** {resultStr}";
+        return new EmbedProperties { Title = $"🚀 Краш (ID: {game.Id})", Color = color, Description = description };
     }
 
     public static EmbedProperties BuildHelpEmbed()
@@ -318,27 +285,12 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         {
             Title = "🤖 Справка по боту",
             Color = new Color(0xF1C40F),
-            Description = "Здесь собраны все доступные команды. Вы можете использовать как текстовые команды (начинаются с `!`), так и слэш-команды (`/`).",
+            Description = "Здесь собраны все доступные команды. Вы можете использовать как текстовые команды (`!`), так и слэш-команды (`/`).",
             Fields = [
-                new() { Name = "🎮 Игры", Value =
-                    "`!bj <ставка>` — Сыграть в Блекджек.\n" +
-                    "`!crash <ставка> <множитель>` — Сыграть в Краш (например: `!crash 1000 2.5`).\n" +
-                    "`!dice <ставка> <от> <до>` — Сыграть в Дайс (например: `!dice 1000 1 50`).\n" +
-                    "`!mines <ставка> <бомбы 1-19>` — Сыграть в Сапёра.\n" +
-                    "`!hilo <ставка>` — Сыграть в Выше-Ниже.", // <-- Добавили Выше-Ниже
-                    Inline = false },
-                new() { Name = "👤 Профиль и Экономика", Value =
-                    "`!profile` — Посмотреть свой баланс и статистику.\n" +
-                    "`!top` — Посмотреть таблицу лидеров по балансу.\n" +
-                    "`!hourly` — Получить бонус 1000 монет (раз в час).\n" +
-                    "`!daily` — Получить бонус 2500 монет (раз в 24 часа).",
-                    Inline = false },
-                new() { Name = "🛡️ Честная игра (Provably Fair)", Value =
-                    "`!proof <ID>` — Проверить честность сыгранной игры по её ID.\n" +
-                    "`!nextseed` — Узнать хеш сервера для следующей игры.\n" + // <-- Добавили nextseed
-                    "`!seed <фраза>` — Задать свою фразу для генерации результатов.\n" +
-                    "`!recover` — Выслать кнопки заново, если вы случайно удалили сообщение с игрой.",
-                    Inline = false }
+                new() { Name = "🎮 Игры", Value = "`!bj <ставка>` — Блекджек.\n`!crash <ставка> <множ.>` — Краш.\n`!dice <ставка> <от> <до>` — Дайс.\n`!mines <ставка> <бомбы 1-19>` — Сапёр.\n`!hilo <ставка>` — Выше-Ниже.", Inline = false },
+                new() { Name = "👤 Экономика", Value = "`!profile` — Профиль.\n`!top` — Топ игроков.\n`!hourly` — Бонус раз в час.\n`!daily` — Бонус раз в 24 часа.", Inline = false },
+                new() { Name = "💎 Премиум (Магазин: `!shop`)", Value = "`!booster [mega]` — Купить бустер x2 на следующую игру.\n`!peek` — Подсмотреть следующие карты в игре.\n`!refund` — Отменить проигрыш и вернуть ставку.\n`!vip` — Купить VIP статус.", Inline = false },
+                new() { Name = "🛡️ Честная игра", Value = "`!proof <ID>` — Проверить честность.\n`!nextseed` — Узнать хеш следующей игры.\n`!seed <фраза>` — Задать свою фразу.\n`!recover` — Восстановить меню игры.", Inline = false }
             ]
         };
     }
@@ -365,25 +317,14 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
     public static EmbedProperties BuildDiceEmbed(DiceGameState game)
     {
         Color color = game.IsWin ? new Color(0x2ECC71) : new Color(0xE74C3C);
-        string resultStr = game.IsWin
-            ? $"✅ Выпало число **{game.RolledNumber}**! Вы выиграли **{game.Payout}** монет!"
-            : $"❌ Выпало число **{game.RolledNumber}**. Ставка проиграна.";
+        string resultStr = game.IsWin ? $"✅ Выпало число **{game.RolledNumber}**! Вы выиграли **{game.Payout}** монет!" : $"❌ Выпало число **{game.RolledNumber}**. Ставка проиграна.";
 
-        return new EmbedProperties
-        {
-            Title = $"🎲 Дайс (ID: {game.Id})",
-            Color = color,
-            Description = $"""
-            💰 **Ставка:** {game.Bet}
-            🎯 **Ваш диапазон:** от {game.MinNumber} до {game.MaxNumber} (Шанс: {game.MaxNumber - game.MinNumber + 1}%)
-            ✖️ **Множитель выигрыша:** {game.Multiplier}x
-            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+        string description = $"💰 **Ставка:** {game.Bet}\n🎯 **Ваш диапазон:** от {game.MinNumber} до {game.MaxNumber} (Шанс: {game.MaxNumber - game.MinNumber + 1}%)\n✖️ **Множитель выигрыша:** {game.Multiplier}x\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
-            🎲 **Выпавшее число: {game.RolledNumber}**
-
-            **Результат:** {resultStr}
-            """
-        };
+        description += $"\n\n🎲 **Выпавшее число: {game.RolledNumber}**\n\n**Результат:** {resultStr}";
+        return new EmbedProperties { Title = $"🎲 Дайс (ID: {game.Id})", Color = color, Description = description };
     }
 
     public static EmbedProperties BuildProfileDiceEmbed(User user, Player player)
@@ -413,25 +354,15 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         if (game.IsGameOver)
         {
             color = game.IsCashedOut ? new Color(0x2ECC71) : new Color(0xE74C3C);
-            resultStr = game.IsCashedOut
-                ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
-                : $"💥 Вы нарвались на мину! Ставка проиграна.";
+            resultStr = game.IsCashedOut ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!" : $"💥 Вы нарвались на мину! Ставка проиграна.";
         }
 
-        return new EmbedProperties
-        {
-            Title = $"💣 Сапёр (ID: {game.Id})",
-            Color = color,
-            Description = $"""
-            💰 **Ставка:** {game.Bet}
-            💣 **Количество мин:** {game.MinesCount}
-            ✖️ **Текущий множитель:** {game.CurrentMultiplier}x
-            💵 **Возможный выигрыш:** {game.CurrentPayout}
-            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
+        string description = $"💰 **Ставка:** {game.Bet}\n💣 **Количество мин:** {game.MinesCount}\n✖️ **Текущий множитель:** {game.CurrentMultiplier}x\n💵 **Возможный выигрыш:** {game.CurrentPayout}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
-            **Результат:** {resultStr}
-            """
-        };
+        description += $"\n\n**Результат:** {resultStr}";
+        return new EmbedProperties { Title = $"💣 Сапёр (ID: {game.Id})", Color = color, Description = description };
     }
 
     public static List<ActionRowProperties> BuildMinesweeperComponents(MinesweeperGameState game)
@@ -520,28 +451,16 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         if (game.IsGameOver)
         {
             color = game.IsCashedOut ? new Color(0x2ECC71) : new Color(0xE74C3C);
-            resultStr = game.IsCashedOut
-                ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!"
-                : $"💥 Вы не угадали! Ставка проиграна.";
+            resultStr = game.IsCashedOut ? $"✅ Вы успешно вывели **{game.CurrentPayout}** монет на множителе **{game.CurrentMultiplier}x**!" : $"💥 Вы не угадали! Ставка проиграна.";
         }
 
         string history = string.Join(" ➡️ ", game.DrawnCards.TakeLast(8));
+        string description = $"💰 **Ставка:** {game.Bet}\n✖️ **Текущий множитель:** {game.CurrentMultiplier}x\n💵 **Возможный выигрыш:** {game.CurrentPayout}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
-        return new EmbedProperties
-        {
-            Title = $"🃏 Выше-Ниже (ID: {game.Id})",
-            Color = color,
-            Description = $"""
-            💰 **Ставка:** {game.Bet}
-            ✖️ **Текущий множитель:** {game.CurrentMultiplier}x
-            💵 **Возможный выигрыш:** {game.CurrentPayout}
-            🔒 **Хеш сервера:** `{game.ServerSeedHash}`
-
-            🃏 **Карты:** {history}
-
-            **Результат:** {resultStr}
-            """
-        };
+        description += $"\n\n🃏 **Карты:** {history}\n\n**Результат:** {resultStr}";
+        return new EmbedProperties { Title = $"🃏 Выше-Ниже (ID: {game.Id})", Color = color, Description = description };
     }
 
     public static List<ActionRowProperties> BuildHiloComponents(HiloGameState game)
@@ -631,5 +550,42 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
             $"Вытряхнул из кассы 2500 монет для <@{userId}>. Не слей всё за одну раздачу."
         ];
         return quotes[Random.Shared.Next(quotes.Length)];
+    }
+
+    public static EmbedProperties BuildShopEmbed()
+    {
+        return new EmbedProperties
+        {
+            Title = "🛒 Магазин Алмазов (💎)",
+            Color = new Color(0x9B59B6),
+            Description = "Алмазы позволяют покупать VIP статус и использовать премиум-функции во время игр!\n\n" +
+                          "**Прайс-лист:**\n" +
+                          "🥉 **50 💎** — 99 рублей\n" +
+                          "🥈 **150 💎** — 279 рублей\n" +
+                          "🥇 **500 💎** — 899 рублей\n" +
+                          "💎 **1800 💎** — 2890 рублей\n" +
+                          "👑 **6500 💎** — 9490 рублей\n\n" +
+                          "*(Для покупки алмазов обратитесь к администратору сервера)*"
+        };
+    }
+
+    public static EmbedProperties BuildConfirmationEmbed(string title, string description)
+    {
+        return new EmbedProperties
+        {
+            Title = $"❓ Подтверждение: {title}",
+            Color = new Color(0xF1C40F),
+            Description = description
+        };
+    }
+
+    public static List<ActionRowProperties> BuildConfirmationComponents(string actionType, ulong userId)
+    {
+        return [
+            new ActionRowProperties([
+                new ButtonProperties($"confirm_{actionType}:{userId}", "✅ Подтвердить", ButtonStyle.Success),
+                new ButtonProperties($"cancel_action:{userId}", "❌ Отмена", ButtonStyle.Danger)
+            ])
+        ];
     }
 }

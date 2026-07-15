@@ -27,4 +27,10 @@ public class Deck
     }
 
     public Card Draw() => _cards.Pop();
+
+    // Добавь этот метод вниз класса Deck
+    public List<Card> PeekNext(int count)
+    {
+        return _cards.Take(count).ToList();
+    }
 }

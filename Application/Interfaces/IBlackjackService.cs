@@ -29,4 +29,16 @@ public interface IBlackjackService
 
     Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimDailyAsync(ulong userId);
     Task<List<Player>> GetTopPlayersAsync(int count = 10);
+
+    Task<Result<int>> PreVipCheckAsync(ulong userId);
+    Task<Result> ConfirmVipAsync(ulong userId);
+
+    Task<Result<int>> PreBoosterCheckAsync(ulong userId, bool isMega);
+    Task<Result> ConfirmBoosterAsync(ulong userId, bool isMega);
+
+    Task<Result<int>> PrePeekCheckAsync(ulong userId);
+    Task<Result<string>> ConfirmPeekAsync(ulong userId);
+
+    Task<Result<int>> PreRefundCheckAsync(ulong userId);
+    Task<Result> ConfirmRefundAsync(ulong userId);
 }

@@ -236,4 +236,59 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
             msg.Components = DiscordMapper.BuildProfileComponents(userId);
         }));
     }
+
+    [ComponentInteraction("cancel_action")]
+    public async Task CancelActionAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => {
+            msg.Content = "❌ Действие отменено.";
+            msg.Embeds = []; msg.Components = [];
+        }));
+    }
+
+    [ComponentInteraction("confirm_vip")]
+    public async Task ConfirmVipAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        var res = await _blackjackService.ConfirmVipAsync(userId);
+        string text = res.IsSuccess ? "👑 **Вы успешно приобрели VIP статус на 30 дней!**" : $"❌ Ошибка: {res.Error}";
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
+    }
+
+    [ComponentInteraction("confirm_booster")]
+    public async Task ConfirmBoosterAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        var res = await _blackjackService.ConfirmBoosterAsync(userId, false);
+        string text = res.IsSuccess ? "🚀 **Обычный Бустер x2 куплен!**" : $"❌ Ошибка: {res.Error}";
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
+    }
+
+    [ComponentInteraction("confirm_megabooster")]
+    public async Task ConfirmMegaBoosterAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        var res = await _blackjackService.ConfirmBoosterAsync(userId, true);
+        string text = res.IsSuccess ? "🔥 **МЕГА-БУСТЕР x2 куплен!** Лимиты на прибыль сняты." : $"❌ Ошибка: {res.Error}";
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
+    }
+
+    [ComponentInteraction("confirm_peek")]
+    public async Task ConfirmPeekAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        var res = await _blackjackService.ConfirmPeekAsync(userId);
+        string text = res.IsSuccess ? $"👁️ **Следующие карты:** || {res.Value} ||" : $"❌ Ошибка: {res.Error}";
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
+    }
+
+    [ComponentInteraction("confirm_refund")]
+    public async Task ConfirmRefundAsync(ulong userId)
+    {
+        if (Context.User.Id != userId) return;
+        var res = await _blackjackService.ConfirmRefundAsync(userId);
+        string text = res.IsSuccess ? "✅ **Возврат успешно выполнен.** Проигранная ставка зачислена обратно на ваш баланс." : $"❌ Ошибка: {res.Error}";
+        await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
+    }
 }

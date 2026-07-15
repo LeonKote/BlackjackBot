@@ -21,12 +21,20 @@ public class BlackjackService : IBlackjackService
     public async Task<Result<(int Balance, DateTimeOffset NextAvailable)>> ClaimHourlyAsync(ulong userId)
     {
         var player = await _playerRepo.GetOrCreateAsync(userId);
-        if ((DateTimeOffset.UtcNow - player.LastHourly).TotalHours < 1)
+
+        // VIP-игроки могут брать бонус каждые 30 минут (0.5 часа), обычные - раз в час (1.0)
+        double hoursNeeded = player.IsVip ? 0.5 : 1.0;
+
+        if ((DateTimeOffset.UtcNow - player.LastHourly).TotalHours < hoursNeeded)
         {
-            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, player.LastHourly.AddHours(1)));
+            var nextAvailable = player.LastHourly.AddHours(hoursNeeded);
+            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, nextAvailable));
         }
 
-        player.Balance += 1000;
+        // Увеличенная награда для VIP
+        int reward = player.IsVip ? 2000 : 1000;
+
+        player.Balance += reward;
         player.LastHourly = DateTimeOffset.UtcNow;
         await _playerRepo.UpdateAsync(player);
 
@@ -35,13 +43,12 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<GameState>> StartGameAsync(ulong userId, int bet)
     {
+        if (bet < 50) return Result<GameState>.Failure("Минимальная ставка - 50 монет.");
         if (_sessionManager.HasAnyActiveGame(userId)) return Result<GameState>.Failure("Завершите текущую игру!");
 
-        if (bet < 50) return Result<GameState>.Failure("Минимальная ставка - 50 монет.");
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<GameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
-        // PROVABLY FAIR: Берем ЗАРАНЕЕ сгенерированный сид
         EnsureNextSeedExists(player);
         string serverSeed = player.NextServerSeed;
         string serverSeedHash = player.NextServerSeedHash;
@@ -65,12 +72,16 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed
         };
 
+        // АКТИВАЦИЯ БУСТЕРОВ
+        game.IsBoosted = player.HasActiveBooster;
+        game.IsMegaBoosted = player.HasActiveMegaBooster;
+        if (game.IsBoosted) player.HasActiveBooster = false;
+        if (game.IsMegaBoosted) player.HasActiveMegaBooster = false;
+
         if (!_sessionManager.TryAddGame(game)) return Result<GameState>.Failure("Завершите текущую игру!");
 
-        // ВАЖНО: Только после успешного старта генерируем новый сид для СЛЕДУЮЩЕЙ игры
         player.NextServerSeed = Guid.NewGuid().ToString("N");
         player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
-
         player.Balance -= bet;
 
         var hand = game.Hands[0];
@@ -79,30 +90,36 @@ public class BlackjackService : IBlackjackService
         hand.Cards.Add(game.Deck.Draw());
         game.DealerHand.Add(game.Deck.Draw());
 
+        // Моментальный финал (Блекджек со старта)
         if (hand.Score == 21 || game.DealerScore == 21)
         {
             game.IsGameOver = true;
-            player.BjGamesPlayed++; // <-- Изменено
+            player.BjGamesPlayed++;
 
             if (hand.Score == 21 && game.DealerScore == 21)
             {
                 hand.Status = GameStatus.Push;
                 player.Balance += bet;
-                player.BjDraws++; // <-- Изменено
+                player.BjDraws++;
             }
             else if (hand.Score == 21)
             {
+                int netProfit = (int)(bet * 1.5);
+                if (game.IsMegaBoosted) netProfit *= 2;
+                else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+
                 hand.Status = GameStatus.BlackjackWin;
-                player.Balance += (int)(bet * 2.5);
-                player.BjWins++; // <-- Изменено
+                player.Balance += (bet + netProfit);
+                player.BjWins++;
                 player.Blackjacks++;
-                player.BjTotalMoneyWon += (int)(bet * 1.5); // <-- Изменено
+                player.BjTotalMoneyWon += netProfit;
             }
             else
             {
                 hand.Status = GameStatus.DealerWin;
-                player.BjLosses++; // <-- Изменено
-                player.BjTotalMoneyLost += bet; // <-- Изменено
+                player.BjLosses++;
+                player.BjTotalMoneyLost += bet;
+                RegisterLoss(player, bet); // Регистрация проигрыша
             }
 
             await _playerRepo.UpdateAsync(player);
@@ -231,14 +248,16 @@ public class BlackjackService : IBlackjackService
         }
 
         var player = await _playerRepo.GetOrCreateAsync(game.UserId);
+        int totalLostInRound = 0;
 
         foreach (var hand in game.Hands)
         {
             if (hand.Status == GameStatus.PlayerBust)
             {
-                player.BjGamesPlayed++; // <-- Изменено
-                player.BjLosses++; // <-- Изменено
-                player.BjTotalMoneyLost += hand.Bet; // <-- Изменено
+                player.BjGamesPlayed++;
+                player.BjLosses++;
+                player.BjTotalMoneyLost += hand.Bet;
+                totalLostInRound += hand.Bet;
                 continue;
             }
 
@@ -247,7 +266,7 @@ public class BlackjackService : IBlackjackService
             else if (game.DealerScore < hand.Score) hand.Status = GameStatus.PlayerWin;
             else hand.Status = GameStatus.Push;
 
-            player.BjGamesPlayed++; // <-- Изменено
+            player.BjGamesPlayed++;
 
             int payout = hand.Status switch
             {
@@ -258,25 +277,36 @@ public class BlackjackService : IBlackjackService
 
             int netProfit = payout - hand.Bet;
 
-            if (hand.Status == GameStatus.Push) player.BjDraws++; // <-- Изменено
-            else if (payout > 0)
+            // БУСТЕРЫ
+            if (game.IsMegaBoosted && netProfit > 0) netProfit *= 2;
+            else if (game.IsBoosted && netProfit > 0)
             {
-                player.BjWins++; // <-- Изменено
-                player.BjTotalMoneyWon += netProfit; // <-- Изменено
+                int bonus = netProfit;
+                if (bonus > 50000) bonus = 50000;
+                netProfit += bonus;
+            }
+
+            if (hand.Status == GameStatus.Push) player.BjDraws++;
+            else if (netProfit > 0)
+            {
+                player.BjWins++;
+                player.BjTotalMoneyWon += netProfit;
             }
             else
             {
-                player.BjLosses++; // <-- Изменено
-                player.BjTotalMoneyLost += hand.Bet; // <-- Изменено
+                player.BjLosses++;
+                player.BjTotalMoneyLost += hand.Bet;
+                totalLostInRound += hand.Bet;
             }
 
-            player.Balance += payout;
+            player.Balance += (hand.Bet + netProfit);
         }
+
+        if (totalLostInRound > 0) RegisterLoss(player, totalLostInRound); // Регистрация проигрыша
 
         await _playerRepo.UpdateAsync(player);
         _sessionManager.RemoveGame(game.UserId);
-
-        await _historyRepo.UpdateToCompletedAsync(game.Id); // <-- Важно! Разрешаем показывать ServerSeed
+        await _historyRepo.UpdateToCompletedAsync(game.Id);
 
         return Result<GameState>.Success(game);
     }
@@ -304,15 +334,13 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<CrashGameState>> PlayCrashAsync(ulong userId, int bet, double targetMultiplier)
     {
-        if (_sessionManager.HasAnyActiveGame(userId)) return Result<CrashGameState>.Failure("Завершите текущую игру!");
-
         if (bet < 50) return Result<CrashGameState>.Failure("Минимальная ставка - 50 монет.");
         if (targetMultiplier < 1.01) return Result<CrashGameState>.Failure("Минимальный множитель - 1.01x.");
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<CrashGameState>.Failure("Завершите текущую игру!");
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<CrashGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
 
-        // PROVABLY FAIR: Берем ЗАРАНЕЕ сгенерированный сид
         EnsureNextSeedExists(player);
         string serverSeed = player.NextServerSeed;
         string serverSeedHash = player.NextServerSeedHash;
@@ -328,20 +356,15 @@ public class BlackjackService : IBlackjackService
             GameType = "Crash"
         });
 
-        // Сразу генерируем новый сид для СЛЕДУЮЩЕЙ игры
         player.NextServerSeed = Guid.NewGuid().ToString("N");
         player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
-
         player.Balance -= bet;
 
-        // Provably Fair алгоритм для Краша БЕЗ House Edge
         byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}"));
         string hex = Convert.ToHexString(hashBytes).ToLower()[..13];
         long h = Convert.ToInt64(hex, 16);
         long e = (long)Math.Pow(2, 52);
 
-        // Больше нет 5% шанса моментального взрыва (h % 20 != 0).
-        // Чистая математическая модель распределения множителей:
         double actualMultiplier = Math.Floor((100.0 * e) / (e - h)) / 100.0;
         if (actualMultiplier < 1.00) actualMultiplier = 1.00;
 
@@ -357,18 +380,29 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed
         };
 
+        // БУСТЕРЫ
+        game.IsBoosted = player.HasActiveBooster;
+        game.IsMegaBoosted = player.HasActiveMegaBooster;
+        if (game.IsBoosted) player.HasActiveBooster = false;
+        if (game.IsMegaBoosted) player.HasActiveMegaBooster = false;
+
         if (game.IsWin)
         {
-            player.Balance += game.Payout;
-            player.CrashWins++; // <-- Изменено
-            player.CrashTotalMoneyWon += (game.Payout - game.Bet); // <-- Изменено
+            int netProfit = game.Payout - game.Bet;
+            if (game.IsMegaBoosted) netProfit *= 2;
+            else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+
+            player.Balance += (game.Bet + netProfit);
+            player.CrashWins++;
+            player.CrashTotalMoneyWon += netProfit;
         }
         else
         {
-            player.CrashLosses++; // <-- Изменено
-            player.CrashTotalMoneyLost += game.Bet; // <-- Изменено
+            player.CrashLosses++;
+            player.CrashTotalMoneyLost += game.Bet;
+            RegisterLoss(player, game.Bet); // Регистрация проигрыша
         }
-        player.CrashGamesPlayed++; // <-- Изменено
+        player.CrashGamesPlayed++;
 
         await _playerRepo.UpdateAsync(player);
         return Result<CrashGameState>.Success(game);
@@ -396,13 +430,11 @@ public class BlackjackService : IBlackjackService
 
     public async Task<Result<DiceGameState>> PlayDiceAsync(ulong userId, int bet, int min, int max)
     {
-        if (_sessionManager.HasAnyActiveGame(userId)) return Result<DiceGameState>.Failure("Завершите текущую игру!");
-
         if (bet < 50) return Result<DiceGameState>.Failure("Минимальная ставка - 50 монет.");
-        if (min < 1 || max > 100 || min > max) return Result<DiceGameState>.Failure("Диапазон должен быть от 1 до 100 (например: 1 50).");
-
+        if (min < 1 || max > 100 || min > max) return Result<DiceGameState>.Failure("Диапазон должен быть от 1 до 100.");
         int chance = max - min + 1;
         if (chance > 95) return Result<DiceGameState>.Failure("Максимальный шанс выигрыша — 95%. Выберите меньший диапазон.");
+        if (_sessionManager.HasAnyActiveGame(userId)) return Result<DiceGameState>.Failure("Завершите текущую игру!");
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
         if (player.Balance < bet) return Result<DiceGameState>.Failure($"Недостаточно средств. Баланс: {player.Balance}");
@@ -419,22 +451,18 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed,
             ServerSeedHash = serverSeedHash,
             IsCompleted = true,
-            GameType = "Dice" // Указываем тип игры
+            GameType = "Dice"
         });
 
-        // Новый сид для следующей игры
         player.NextServerSeed = Guid.NewGuid().ToString("N");
         player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
-
         player.Balance -= bet;
 
-        // Provably Fair алгоритм: берем первые 8 символов хеша (4 байта), переводим в число и берем остаток от деления на 100
         byte[] hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}"));
         string hex = Convert.ToHexString(hashBytes).ToLower()[..8];
         long h = Convert.ToInt64(hex, 16);
         int rolledNumber = (int)(h % 100) + 1;
 
-        // Считаем множитель (100.0 / шанс) с округлением до 2 знаков БЕЗ House Edge
         double multiplier = Math.Round(100.0 / chance, 2);
 
         var game = new DiceGameState
@@ -451,16 +479,27 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed
         };
 
+        // БУСТЕРЫ
+        game.IsBoosted = player.HasActiveBooster;
+        game.IsMegaBoosted = player.HasActiveMegaBooster;
+        if (game.IsBoosted) player.HasActiveBooster = false;
+        if (game.IsMegaBoosted) player.HasActiveMegaBooster = false;
+
         if (game.IsWin)
         {
-            player.Balance += game.Payout;
+            int netProfit = game.Payout - game.Bet;
+            if (game.IsMegaBoosted) netProfit *= 2;
+            else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+
+            player.Balance += (game.Bet + netProfit);
             player.DiceWins++;
-            player.DiceTotalMoneyWon += (game.Payout - game.Bet);
+            player.DiceTotalMoneyWon += netProfit;
         }
         else
         {
             player.DiceLosses++;
             player.DiceTotalMoneyLost += game.Bet;
+            RegisterLoss(player, game.Bet); // Регистрация проигрыша
         }
         player.DiceGamesPlayed++;
 
@@ -494,18 +533,13 @@ public class BlackjackService : IBlackjackService
 
         player.NextServerSeed = Guid.NewGuid().ToString("N");
         player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
-
         player.Balance -= bet;
-        await _playerRepo.UpdateAsync(player);
 
-        // Provably Fair алгоритм генерации бомб
         var tilesWithHashes = Enumerable.Range(0, 20).Select(index =>
         {
             var hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{serverSeed}:{player.ClientSeed}:{history.Id}:{index}"));
             return new { Index = index, Hash = Convert.ToHexString(hashBytes).ToLower() };
         }).ToList();
-
-        // Сортируем плитки по хешу и берем первые `minesCount` индексов
         var minePositions = tilesWithHashes.OrderBy(x => x.Hash).Take(minesCount).Select(x => x.Index).ToList();
 
         var game = new MinesweeperGameState
@@ -520,6 +554,13 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed
         };
 
+        // БУСТЕРЫ
+        game.IsBoosted = player.HasActiveBooster;
+        game.IsMegaBoosted = player.HasActiveMegaBooster;
+        if (game.IsBoosted) player.HasActiveBooster = false;
+        if (game.IsMegaBoosted) player.HasActiveMegaBooster = false;
+
+        await _playerRepo.UpdateAsync(player);
         _sessionManager.TryAddMinesGame(game);
         return Result<MinesweeperGameState>.Success(game);
     }
@@ -536,7 +577,6 @@ public class BlackjackService : IBlackjackService
 
         if (game.MinePositions.Contains(tileIndex))
         {
-            // БАБАХ!
             game.IsGameOver = true;
             game.IsBusted = true;
             game.BustedOnTile = tileIndex;
@@ -544,6 +584,7 @@ public class BlackjackService : IBlackjackService
             player.MinesGamesPlayed++;
             player.MinesLosses++;
             player.MinesTotalMoneyLost += game.Bet;
+            RegisterLoss(player, game.Bet); // Регистрация проигрыша
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveMinesGame(userId);
@@ -552,14 +593,10 @@ public class BlackjackService : IBlackjackService
             return Result<MinesweeperGameState>.Success(game);
         }
 
-        // Успешно открыли безопасную плитку
         game.RevealedPositions.Add(tileIndex);
 
-        // Проверка: открыты ли ВСЕ безопасные плитки?
         if (game.RevealedPositions.Count == 20 - game.MinesCount)
-        {
-            return await CashoutMinesweeperAsync(userId); // Автоматический вывод
-        }
+            return await CashoutMinesweeperAsync(userId);
 
         return Result<MinesweeperGameState>.Success(game);
     }
@@ -577,10 +614,14 @@ public class BlackjackService : IBlackjackService
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
-        player.Balance += game.CurrentPayout;
+        int netProfit = game.CurrentPayout - game.Bet;
+        if (game.IsMegaBoosted) netProfit *= 2;
+        else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+
+        player.Balance += (game.Bet + netProfit);
         player.MinesGamesPlayed++;
         player.MinesWins++;
-        player.MinesTotalMoneyWon += (game.CurrentPayout - game.Bet);
+        player.MinesTotalMoneyWon += netProfit;
 
         await _playerRepo.UpdateAsync(player);
         _sessionManager.RemoveMinesGame(userId);
@@ -614,9 +655,7 @@ public class BlackjackService : IBlackjackService
 
         player.NextServerSeed = Guid.NewGuid().ToString("N");
         player.NextServerSeedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(player.NextServerSeed))).ToLower();
-
         player.Balance -= bet;
-        await _playerRepo.UpdateAsync(player);
 
         var game = new HiloGameState
         {
@@ -628,8 +667,14 @@ public class BlackjackService : IBlackjackService
             ClientSeed = player.ClientSeed
         };
 
-        game.DrawnCards.Add(game.DrawCard(0)); // Вытягиваем самую первую (стартовую) карту
+        // БУСТЕРЫ
+        game.IsBoosted = player.HasActiveBooster;
+        game.IsMegaBoosted = player.HasActiveMegaBooster;
+        if (game.IsBoosted) player.HasActiveBooster = false;
+        if (game.IsMegaBoosted) player.HasActiveMegaBooster = false;
 
+        await _playerRepo.UpdateAsync(player);
+        game.DrawnCards.Add(game.DrawCard(0));
         _sessionManager.TryAddHiloGame(game);
         return Result<HiloGameState>.Success(game);
     }
@@ -649,7 +694,6 @@ public class BlackjackService : IBlackjackService
         double factor = 1.0;
         int prevRank = (int)prevCard.Rank;
 
-        // Расчет с нулевым преимуществом казино (RTP 100%)
         if (guess == "hi")
         {
             isWin = (int)nextCard.Rank >= prevRank;
@@ -675,6 +719,7 @@ public class BlackjackService : IBlackjackService
             player.HiloGamesPlayed++;
             player.HiloLosses++;
             player.HiloTotalMoneyLost += game.Bet;
+            RegisterLoss(player, game.Bet); // Регистрация проигрыша
 
             await _playerRepo.UpdateAsync(player);
             _sessionManager.RemoveHiloGame(userId);
@@ -697,10 +742,14 @@ public class BlackjackService : IBlackjackService
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
-        player.Balance += game.CurrentPayout;
+        int netProfit = game.CurrentPayout - game.Bet;
+        if (game.IsMegaBoosted) netProfit *= 2;
+        else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+
+        player.Balance += (game.Bet + netProfit);
         player.HiloGamesPlayed++;
         player.HiloWins++;
-        player.HiloTotalMoneyWon += (game.CurrentPayout - game.Bet);
+        player.HiloTotalMoneyWon += netProfit;
 
         await _playerRepo.UpdateAsync(player);
         _sessionManager.RemoveHiloGame(userId);
@@ -713,13 +762,16 @@ public class BlackjackService : IBlackjackService
     {
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
-        // Проверяем, прошло ли 24 часа
         if ((DateTimeOffset.UtcNow - player.LastDaily).TotalHours < 24)
         {
-            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, player.LastDaily.AddHours(24)));
+            var nextAvailable = player.LastDaily.AddHours(24);
+            return Result<(int, DateTimeOffset)>.Failure("Время еще не пришло", (player.Balance, nextAvailable));
         }
 
-        player.Balance += 2500; // Дневной бонус (2500 монет)
+        // Увеличенная награда для VIP
+        int reward = player.IsVip ? 10000 : 5000;
+
+        player.Balance += reward;
         player.LastDaily = DateTimeOffset.UtcNow;
         await _playerRepo.UpdateAsync(player);
 
@@ -729,5 +781,119 @@ public class BlackjackService : IBlackjackService
     public async Task<List<Player>> GetTopPlayersAsync(int count = 10)
     {
         return await _playerRepo.GetTopPlayersAsync(count);
+    }
+
+    // Вспомогательный метод для регистрации проигрыша
+    private void RegisterLoss(Player player, int lostAmount)
+    {
+        if (lostAmount > 0)
+        {
+            player.LastLostBet = lostAmount;
+            player.LastLossTime = DateTimeOffset.UtcNow;
+            player.IsLastLossRewinded = false;
+        }
+    }
+
+    public async Task<Result<int>> PreVipCheckAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Diamonds < 150) return Result<int>.Failure("Для покупки VIP нужно 150 💎.");
+        return Result<int>.Success(150);
+    }
+    public async Task<Result> ConfirmVipAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Diamonds < 150) return Result.Failure("Недостаточно алмазов.");
+        player.Diamonds -= 150;
+        player.VipUntil = player.IsVip ? player.VipUntil.AddDays(30) : DateTimeOffset.UtcNow.AddDays(30);
+        await _playerRepo.UpdateAsync(player);
+        return Result.Success();
+    }
+
+    public async Task<Result<int>> PreBoosterCheckAsync(ulong userId, bool isMega)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.HasActiveBooster || player.HasActiveMegaBooster)
+            return Result<int>.Failure("У вас уже активирован бустер на следующую игру!");
+
+        int cost = isMega ? 25 : 5;
+        if (player.Diamonds < cost)
+            return Result<int>.Failure($"Для покупки этого Бустера нужно {cost} 💎.");
+
+        return Result<int>.Success(cost);
+    }
+
+    public async Task<Result> ConfirmBoosterAsync(ulong userId, bool isMega)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.HasActiveBooster || player.HasActiveMegaBooster)
+            return Result.Failure("Уже активировано.");
+
+        int cost = isMega ? 25 : 5;
+        if (player.Diamonds < cost) return Result.Failure("Недостаточно алмазов.");
+
+        player.Diamonds -= cost;
+        if (isMega) player.HasActiveMegaBooster = true;
+        else player.HasActiveBooster = true;
+
+        await _playerRepo.UpdateAsync(player);
+        return Result.Success();
+    }
+
+    public async Task<Result<int>> PrePeekCheckAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (!_sessionManager.TryGetGame(userId, out _) && !_sessionManager.TryGetHiloGame(userId, out _))
+            return Result<int>.Failure("Просмотр карт доступен только во время активной игры в Блекджек или Выше-Ниже!");
+        if (player.Diamonds < 3) return Result<int>.Failure("Для просмотра карт нужно 3 💎.");
+        return Result<int>.Success(3);
+    }
+
+    public async Task<Result<string>> ConfirmPeekAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.Diamonds < 3) return Result<string>.Failure("Недостаточно алмазов.");
+
+        string response;
+        if (_sessionManager.TryGetGame(userId, out var bjGame) && bjGame != null)
+        {
+            var cards = bjGame.Deck.PeekNext(2);
+            response = $"**{cards[0]}** и **{cards[1]}**";
+        }
+        else if (_sessionManager.TryGetHiloGame(userId, out var hiloGame) && hiloGame != null)
+        {
+            int round = hiloGame.DrawnCards.Count;
+            response = $"**{hiloGame.DrawCard(round)}** и **{hiloGame.DrawCard(round + 1)}**";
+        }
+        else return Result<string>.Failure("Игра не найдена.");
+
+        player.Diamonds -= 3;
+        await _playerRepo.UpdateAsync(player);
+        return Result<string>.Success(response);
+    }
+
+    public async Task<Result<int>> PreRefundCheckAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.LastLostBet == 0 || player.IsLastLossRewinded) return Result<int>.Failure("У вас нет недавних проигрышей для возврата.");
+        if ((DateTimeOffset.UtcNow - player.LastLossTime).TotalMinutes > 5) return Result<int>.Failure("Время вышло! Вернуть ставку можно только в течение 5 минут после проигрыша.");
+
+        int cost = 2 + (int)(player.LastLostBet / 10000);
+        if (player.Diamonds < cost) return Result<int>.Failure($"Для возврата ставки ({player.LastLostBet} монет) нужно **{cost} 💎**.");
+        return Result<int>.Success(cost);
+    }
+
+    public async Task<Result> ConfirmRefundAsync(ulong userId)
+    {
+        var player = await _playerRepo.GetOrCreateAsync(userId);
+        if (player.LastLostBet == 0 || player.IsLastLossRewinded) return Result.Failure("Нет доступных проигрышей для возврата.");
+        int cost = 2 + (int)(player.LastLostBet / 10000);
+        if (player.Diamonds < cost) return Result.Failure("Недостаточно алмазов.");
+
+        player.Diamonds -= cost;
+        player.Balance += (int)player.LastLostBet;
+        player.IsLastLossRewinded = true;
+        await _playerRepo.UpdateAsync(player);
+        return Result.Success();
     }
 }

@@ -337,4 +337,76 @@ public class TextCommandModule : CommandModule<CommandContext>
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });
     }
+
+    [Command("shop")]
+    public async Task ShopAsync()
+    {
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Embeds = [DiscordMapper.BuildShopEmbed()], MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
+    }
+
+    [Command("vip")]
+    public async Task VipAsync()
+    {
+        var res = await _blackjackService.PreVipCheckAsync(Context.Message.Author.Id);
+        if (!res.IsSuccess) { await SendErrorAsync(res.Error); return; }
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Покупка VIP", $"Вы собираетесь приобрести VIP статус на 30 дней.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("vip", Context.Message.Author.Id),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("booster")]
+    public async Task BoosterAsync(string type = "")
+    {
+        bool isMega = type.ToLower() == "mega";
+        var res = await _blackjackService.PreBoosterCheckAsync(Context.Message.Author.Id, isMega);
+        if (!res.IsSuccess) { await SendErrorAsync(res.Error); return; }
+
+        string title = isMega ? "Мега-Бустер x2" : "Обычный Бустер x2";
+        string desc = isMega
+            ? $"Мега-бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры **без ограничений**.\nЦена: **{res.Value} 💎**"
+            : $"Бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры (максимум до 50,000 бонусных монет).\nДля покупки Мега-бустера напишите `!booster mega`.\nЦена: **{res.Value} 💎**";
+
+        string actionData = isMega ? "megabooster" : "booster";
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed(title, desc)],
+            Components = DiscordMapper.BuildConfirmationComponents(actionData, Context.Message.Author.Id),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("peek")]
+    public async Task PeekAsync()
+    {
+        var res = await _blackjackService.PrePeekCheckAsync(Context.Message.Author.Id);
+        if (!res.IsSuccess) { await SendErrorAsync(res.Error); return; }
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Просмотр карт", $"Вы увидите 2 следующие карты в текущей раздаче.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("peek", Context.Message.Author.Id),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    [Command("refund", "возврат")]
+    public async Task RefundAsync()
+    {
+        var res = await _blackjackService.PreRefundCheckAsync(Context.Message.Author.Id);
+        if (!res.IsSuccess) { await SendErrorAsync(res.Error); return; }
+
+        await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
+        {
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс сумму своей последней проигранной ставки.\nЦена: **{res.Value} 💎**")],
+            Components = DiscordMapper.BuildConfirmationComponents("refund", Context.Message.Author.Id),
+            MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
+        });
+    }
+
+    private Task SendErrorAsync(string error) => Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties { Content = $"❌ {error}", MessageReference = MessageReferenceProperties.Reply(Context.Message.Id) });
 }

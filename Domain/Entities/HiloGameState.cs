@@ -17,6 +17,9 @@ public class HiloGameState
     public string ServerSeedHash { get; set; } = "";
     public string ClientSeed { get; set; } = "";
 
+    public bool IsBoosted { get; set; }
+    public bool IsMegaBoosted { get; set; }
+
     public int CurrentPayout => (int)(Bet * CurrentMultiplier);
 
     // Provably Fair алгоритм: вытягиваем карту в зависимости от номера раунда

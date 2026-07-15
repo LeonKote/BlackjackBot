@@ -20,6 +20,9 @@ public class MinesweeperGameState
     public string ServerSeedHash { get; set; } = "";
     public string ClientSeed { get; set; } = "";
 
+    public bool IsBoosted { get; set; }
+    public bool IsMegaBoosted { get; set; }
+
     public double CurrentMultiplier => CalculateMultiplier(RevealedPositions.Count, MinesCount);
     public int CurrentPayout => (int)(Bet * CurrentMultiplier);
 

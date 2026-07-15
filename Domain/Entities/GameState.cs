@@ -16,7 +16,9 @@ public class GameState
     public string ServerSeed { get; set; } = "";
     public string ServerSeedHash { get; set; } = "";
     public string ClientSeed { get; set; } = "";
-    // Убрали Nonce
+
+    public bool IsBoosted { get; set; }
+    public bool IsMegaBoosted { get; set; }
 
     public int DealerScore => CalculateScore(DealerHand);
 

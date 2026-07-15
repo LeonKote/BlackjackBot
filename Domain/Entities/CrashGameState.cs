@@ -14,4 +14,7 @@ public class CrashGameState
     public string ServerSeed { get; set; } = "";
     public string ServerSeedHash { get; set; } = "";
     public string ClientSeed { get; set; } = "";
+
+    public bool IsBoosted { get; set; }
+    public bool IsMegaBoosted { get; set; }
 }
