@@ -346,8 +346,8 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 
         string title = isMega ? "Мега-Бустер x2" : "Обычный Бустер x2";
         string desc = isMega
-            ? $"Мега-бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры **без ограничений**.\nЦена: **{res.Value} 💎**"
-            : $"Бустер удвоит прибыль вашей СЛЕДУЮЩЕЙ игры (максимум до +50,000 монет).\nДля покупки Мега-бустера используйте параметр 'mega'.\nЦена: **{res.Value} 💎**";
+            ? $"Мега-бустер удвоит выигрыш вашей СЛЕДУЮЩЕЙ игры **без ограничений**.\nЦена: **{res.Value} 💎**"
+            : $"Бустер удвоит выигрыш вашей СЛЕДУЮЩЕЙ игры (максимум до 50,000 монет).\nДля покупки Мега-бустера используйте параметр 'mega'.\nЦена: **{res.Value} 💎**";
         string actionData = isMega ? "megabooster" : "booster";
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties

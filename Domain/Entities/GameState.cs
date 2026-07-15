@@ -20,6 +20,8 @@ public class GameState
     public bool IsBoosted { get; set; }
     public bool IsMegaBoosted { get; set; }
 
+    public bool HasPeeked { get; set; } = false; // <-- Добавили
+
     public int DealerScore => CalculateScore(DealerHand);
 
     public GameState(ulong userId, int initialBet, string serverSeed, string clientSeed, long gameId)

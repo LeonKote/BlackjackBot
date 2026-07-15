@@ -20,6 +20,8 @@ public class HiloGameState
     public bool IsBoosted { get; set; }
     public bool IsMegaBoosted { get; set; }
 
+    public bool HasPeeked { get; set; } = false; // <-- Добавили
+
     public int CurrentPayout => (int)(Bet * CurrentMultiplier);
 
     // Provably Fair алгоритм: вытягиваем карту в зависимости от номера раунда

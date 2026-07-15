@@ -104,12 +104,16 @@ public class BlackjackService : IBlackjackService
             }
             else if (hand.Score == 21)
             {
-                int netProfit = (int)(bet * 1.5);
-                if (game.IsMegaBoosted) netProfit *= 2;
-                else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+                int payout = (int)(bet * 2.5);
+                int bonus = 0;
+                if (game.IsMegaBoosted) bonus = payout;
+                else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; } // <-- Лимит 100к
+
+                payout += bonus;
+                int netProfit = payout - bet;
 
                 hand.Status = GameStatus.BlackjackWin;
-                player.Balance += (bet + netProfit);
+                player.Balance += payout;
                 player.BjWins++;
                 player.Blackjacks++;
                 player.BjTotalMoneyWon += netProfit;
@@ -275,16 +279,16 @@ public class BlackjackService : IBlackjackService
                 _ => 0
             };
 
-            int netProfit = payout - hand.Bet;
-
-            // БУСТЕРЫ
-            if (game.IsMegaBoosted && netProfit > 0) netProfit *= 2;
-            else if (game.IsBoosted && netProfit > 0)
+            int bonus = 0;
+            // Умножаем выигрыш (но не ничью)
+            if (hand.Status is GameStatus.DealerBust or GameStatus.PlayerWin)
             {
-                int bonus = netProfit;
-                if (bonus > 50000) bonus = 50000;
-                netProfit += bonus;
+                if (game.IsMegaBoosted) bonus = payout;
+                else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; }
             }
+
+            payout += bonus;
+            int netProfit = payout - hand.Bet;
 
             if (hand.Status == GameStatus.Push) player.BjDraws++;
             else if (netProfit > 0)
@@ -298,8 +302,7 @@ public class BlackjackService : IBlackjackService
                 player.BjTotalMoneyLost += hand.Bet;
                 totalLostInRound += hand.Bet;
             }
-
-            player.Balance += (hand.Bet + netProfit);
+            player.Balance += payout; // Ставка была вычтена в начале, просто прибавляем выплату
         }
 
         if (totalLostInRound > 0) RegisterLoss(player, totalLostInRound); // Регистрация проигрыша
@@ -388,11 +391,15 @@ public class BlackjackService : IBlackjackService
 
         if (game.IsWin)
         {
-            int netProfit = game.Payout - game.Bet;
-            if (game.IsMegaBoosted) netProfit *= 2;
-            else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+            int payout = game.Payout;
+            int bonus = 0;
+            if (game.IsMegaBoosted) bonus = payout;
+            else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; }
 
-            player.Balance += (game.Bet + netProfit);
+            payout += bonus;
+            int netProfit = payout - game.Bet;
+
+            player.Balance += payout;
             player.CrashWins++;
             player.CrashTotalMoneyWon += netProfit;
         }
@@ -487,11 +494,15 @@ public class BlackjackService : IBlackjackService
 
         if (game.IsWin)
         {
-            int netProfit = game.Payout - game.Bet;
-            if (game.IsMegaBoosted) netProfit *= 2;
-            else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+            int payout = game.Payout;
+            int bonus = 0;
+            if (game.IsMegaBoosted) bonus = payout;
+            else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; }
 
-            player.Balance += (game.Bet + netProfit);
+            payout += bonus;
+            int netProfit = payout - game.Bet;
+
+            player.Balance += payout;
             player.DiceWins++;
             player.DiceTotalMoneyWon += netProfit;
         }
@@ -614,18 +625,18 @@ public class BlackjackService : IBlackjackService
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
-        int netProfit = game.CurrentPayout - game.Bet;
-        if (game.IsMegaBoosted) netProfit *= 2;
-        else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+        int payout = game.CurrentPayout;
+        int bonus = 0;
+        if (game.IsMegaBoosted) bonus = payout;
+        else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; }
 
-        player.Balance += (game.Bet + netProfit);
+        payout += bonus;
+        int netProfit = payout - game.Bet;
+
+        player.Balance += payout;
         player.MinesGamesPlayed++;
         player.MinesWins++;
         player.MinesTotalMoneyWon += netProfit;
-
-        await _playerRepo.UpdateAsync(player);
-        _sessionManager.RemoveMinesGame(userId);
-        await _historyRepo.UpdateToCompletedAsync(game.Id);
 
         return Result<MinesweeperGameState>.Success(game);
     }
@@ -742,11 +753,15 @@ public class BlackjackService : IBlackjackService
 
         var player = await _playerRepo.GetOrCreateAsync(userId);
 
-        int netProfit = game.CurrentPayout - game.Bet;
-        if (game.IsMegaBoosted) netProfit *= 2;
-        else if (game.IsBoosted) { int bonus = netProfit; if (bonus > 50000) bonus = 50000; netProfit += bonus; }
+        int payout = game.CurrentPayout;
+        int bonus = 0;
+        if (game.IsMegaBoosted) bonus = payout;
+        else if (game.IsBoosted) { bonus = payout; if (bonus > 50000) bonus = 50000; }
 
-        player.Balance += (game.Bet + netProfit);
+        payout += bonus;
+        int netProfit = payout - game.Bet;
+
+        player.Balance += payout;
         player.HiloGamesPlayed++;
         player.HiloWins++;
         player.HiloTotalMoneyWon += netProfit;
@@ -843,8 +858,17 @@ public class BlackjackService : IBlackjackService
     public async Task<Result<int>> PrePeekCheckAsync(ulong userId)
     {
         var player = await _playerRepo.GetOrCreateAsync(userId);
-        if (!_sessionManager.TryGetGame(userId, out _) && !_sessionManager.TryGetHiloGame(userId, out _))
-            return Result<int>.Failure("Просмотр карт доступен только во время активной игры в Блекджек или Выше-Ниже!");
+
+        if (_sessionManager.TryGetGame(userId, out var bjGame) && bjGame != null)
+        {
+            if (bjGame.HasPeeked) return Result<int>.Failure("Вы уже подсматривали карты в этой раздаче!");
+        }
+        else if (_sessionManager.TryGetHiloGame(userId, out var hiloGame) && hiloGame != null)
+        {
+            if (hiloGame.HasPeeked) return Result<int>.Failure("Вы уже подсматривали карты в этой раздаче!");
+        }
+        else return Result<int>.Failure("Просмотр карт доступен только во время активной игры в Блекджек или Выше-Ниже!");
+
         if (player.Diamonds < 3) return Result<int>.Failure("Для просмотра карт нужно 3 💎.");
         return Result<int>.Success(3);
     }
@@ -857,13 +881,17 @@ public class BlackjackService : IBlackjackService
         string response;
         if (_sessionManager.TryGetGame(userId, out var bjGame) && bjGame != null)
         {
+            if (bjGame.HasPeeked) return Result<string>.Failure("Уже использовано.");
             var cards = bjGame.Deck.PeekNext(2);
             response = $"**{cards[0]}** и **{cards[1]}**";
+            bjGame.HasPeeked = true; // <-- Ставим флаг
         }
         else if (_sessionManager.TryGetHiloGame(userId, out var hiloGame) && hiloGame != null)
         {
+            if (hiloGame.HasPeeked) return Result<string>.Failure("Уже использовано.");
             int round = hiloGame.DrawnCards.Count;
             response = $"**{hiloGame.DrawCard(round)}** и **{hiloGame.DrawCard(round + 1)}**";
+            hiloGame.HasPeeked = true; // <-- Ставим флаг
         }
         else return Result<string>.Failure("Игра не найдена.");
 
