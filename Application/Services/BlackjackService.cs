@@ -638,6 +638,10 @@ public class BlackjackService : IBlackjackService
         player.MinesWins++;
         player.MinesTotalMoneyWon += netProfit;
 
+        await _playerRepo.UpdateAsync(player);
+        _sessionManager.RemoveMinesGame(userId);
+        await _historyRepo.UpdateToCompletedAsync(game.Id);
+
         return Result<MinesweeperGameState>.Success(game);
     }
 
