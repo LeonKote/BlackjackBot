@@ -31,8 +31,8 @@ public static class DiscordMapper
         int totalBet = game.Hands.Sum(h => h.Bet);
         string description = $"💰 **Общая ставка:** {totalBet}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
 
-        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Выигрыш x2 без лимитов)**";
-        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Выигрыш x2 до 50k монет)**";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
         if (game.IsGameOver)
         {
@@ -272,8 +272,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         string resultStr = game.IsWin ? $"✅ Вы успешно вывели на **{game.TargetMultiplier}x** и выиграли **{game.Payout}** монет!" : $"💥 Ракета взорвалась на **{game.ActualMultiplier}x**. Вы не успели вывести ставку.";
 
         string description = $"💰 **Ставка:** {game.Bet}\n🎯 **Цель (Автовывод):** {game.TargetMultiplier}x\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
-        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Выигрыш x2 без лимитов)**";
-        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Выигрыш x2 до 50k монет)**";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
         description += $"\n\n📈 **Итоговый множитель: {game.ActualMultiplier}x**\n\n**Результат:** {resultStr}";
         return new EmbedProperties { Title = $"🚀 Краш (ID: {game.Id})", Color = color, Description = description };
@@ -320,8 +320,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         string resultStr = game.IsWin ? $"✅ Выпало число **{game.RolledNumber}**! Вы выиграли **{game.Payout}** монет!" : $"❌ Выпало число **{game.RolledNumber}**. Ставка проиграна.";
 
         string description = $"💰 **Ставка:** {game.Bet}\n🎯 **Ваш диапазон:** от {game.MinNumber} до {game.MaxNumber} (Шанс: {game.MaxNumber - game.MinNumber + 1}%)\n✖️ **Множитель выигрыша:** {game.Multiplier}x\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
-        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Выигрыш x2 без лимитов)**";
-        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Выигрыш x2 до 50k монет)**";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
         description += $"\n\n🎲 **Выпавшее число: {game.RolledNumber}**\n\n**Результат:** {resultStr}";
         return new EmbedProperties { Title = $"🎲 Дайс (ID: {game.Id})", Color = color, Description = description };
@@ -358,8 +358,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
         }
 
         string description = $"💰 **Ставка:** {game.Bet}\n💣 **Количество мин:** {game.MinesCount}\n✖️ **Текущий множитель:** {game.CurrentMultiplier}x\n💵 **Возможный выигрыш:** {game.CurrentPayout}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
-        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Выигрыш x2 без лимитов)**";
-        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Выигрыш x2 до 50k монет)**";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
         description += $"\n\n**Результат:** {resultStr}";
         return new EmbedProperties { Title = $"💣 Сапёр (ID: {game.Id})", Color = color, Description = description };
@@ -456,8 +456,8 @@ print('Раздача карт:', ', '.join(c[1] for c in cards[:10]))";
 
         string history = string.Join(" ➡️ ", game.DrawnCards.TakeLast(8));
         string description = $"💰 **Ставка:** {game.Bet}\n✖️ **Текущий множитель:** {game.CurrentMultiplier}x\n💵 **Возможный выигрыш:** {game.CurrentPayout}\n🔒 **Хеш сервера:** `{game.ServerSeedHash}`";
-        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Выигрыш x2 без лимитов)**";
-        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Выигрыш x2 до 50k монет)**";
+        if (game.IsMegaBoosted) description += "\n🔥 **МЕГА-БУСТЕР АКТИВЕН (Прибыль x2 без лимитов)**";
+        else if (game.IsBoosted) description += "\n🚀 **БУСТЕР АКТИВЕН (Прибыль x2 до 50k монет)**";
 
         description += $"\n\n🃏 **Карты:** {history}\n\n**Результат:** {resultStr}";
         return new EmbedProperties { Title = $"🃏 Выше-Ниже (ID: {game.Id})", Color = color, Description = description };
