@@ -376,7 +376,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
         }));
     }
 
-    [SlashCommand("refund", "Вернуть свою последнюю проигранную ставку (Маховик времени)")]
+    [SlashCommand("refund", "Вернуть 50% от своей последней проигранной ставки")]
     public async Task RefundAsync()
     {
         if (!_channelValidator.IsAllowed(Context.Interaction.Channel.Id)) return;
@@ -390,7 +390,7 @@ public class CommandModule : ApplicationCommandModule<SlashCommandContext>
 
         await Context.Interaction.SendResponseAsync(InteractionCallback.Message(new InteractionMessageProperties
         {
-            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс сумму своей последней проигранной ставки.\nЦена: **{res.Value} 💎**")],
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс **{res.Value.RefundAmount} монет** (50% от последней проигранной ставки).\nЦена: **{res.Value.Cost} 💎**")],
             Components = DiscordMapper.BuildConfirmationComponents("refund", Context.User.Id)
         }));
     }

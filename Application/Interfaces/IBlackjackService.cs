@@ -39,6 +39,6 @@ public interface IBlackjackService
     Task<Result<int>> PrePeekCheckAsync(ulong userId);
     Task<Result<string>> ConfirmPeekAsync(ulong userId);
 
-    Task<Result<int>> PreRefundCheckAsync(ulong userId);
+    Task<Result<(int Cost, int RefundAmount)>> PreRefundCheckAsync(ulong userId);
     Task<Result> ConfirmRefundAsync(ulong userId);
 }

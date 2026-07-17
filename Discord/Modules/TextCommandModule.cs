@@ -402,7 +402,7 @@ public class TextCommandModule : CommandModule<CommandContext>
 
         await Context.Client.Rest.SendMessageAsync(Context.Message.ChannelId, new MessageProperties
         {
-            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс сумму своей последней проигранной ставки.\nЦена: **{res.Value} 💎**")],
+            Embeds = [DiscordMapper.BuildConfirmationEmbed("Возврат ставки", $"Вы вернете на баланс **{res.Value.RefundAmount} монет** (50% от последней проигранной ставки).\nЦена: **{res.Value.Cost} 💎**")],
             Components = DiscordMapper.BuildConfirmationComponents("refund", Context.Message.Author.Id),
             MessageReference = MessageReferenceProperties.Reply(Context.Message.Id)
         });

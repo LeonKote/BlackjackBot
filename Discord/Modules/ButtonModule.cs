@@ -288,7 +288,7 @@ public class ButtonModule : ComponentInteractionModule<ButtonInteractionContext>
     {
         if (Context.User.Id != userId) return;
         var res = await _blackjackService.ConfirmRefundAsync(userId);
-        string text = res.IsSuccess ? "✅ **Возврат успешно выполнен.** Проигранная ставка зачислена обратно на ваш баланс." : $"❌ Ошибка: {res.Error}";
+        string text = res.IsSuccess ? "✅ **Возврат успешно выполнен.** 50% от проигранной ставки зачислено обратно на ваш баланс." : $"❌ Ошибка: {res.Error}";
         await Context.Interaction.SendResponseAsync(InteractionCallback.ModifyMessage(msg => { msg.Content = text; msg.Embeds = []; msg.Components = []; }));
     }
 }

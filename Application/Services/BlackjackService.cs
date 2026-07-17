@@ -900,15 +900,21 @@ public class BlackjackService : IBlackjackService
         return Result<string>.Success(response);
     }
 
-    public async Task<Result<int>> PreRefundCheckAsync(ulong userId)
+    public async Task<Result<(int Cost, int RefundAmount)>> PreRefundCheckAsync(ulong userId)
     {
         var player = await _playerRepo.GetOrCreateAsync(userId);
-        if (player.LastLostBet == 0 || player.IsLastLossRewinded) return Result<int>.Failure("У вас нет недавних проигрышей для возврата.");
-        if ((DateTimeOffset.UtcNow - player.LastLossTime).TotalMinutes > 5) return Result<int>.Failure("Время вышло! Вернуть ставку можно только в течение 5 минут после проигрыша.");
+        if (player.LastLostBet == 0 || player.IsLastLossRewinded)
+            return Result<(int, int)>.Failure("У вас нет недавних проигрышей для возврата.");
+
+        if ((DateTimeOffset.UtcNow - player.LastLossTime).TotalMinutes > 5)
+            return Result<(int, int)>.Failure("Время вышло! Вернуть ставку можно только в течение 5 минут после проигрыша.");
 
         int cost = 2 + (int)(player.LastLostBet / 10000);
-        if (player.Diamonds < cost) return Result<int>.Failure($"Для возврата ставки ({player.LastLostBet} монет) нужно **{cost} 💎**.");
-        return Result<int>.Success(cost);
+        if (player.Diamonds < cost)
+            return Result<(int, int)>.Failure($"Для возврата ставки ({player.LastLostBet} монет) нужно **{cost} 💎**.");
+
+        int refundAmount = (int)(player.LastLostBet / 2); // Считаем ровно 50%
+        return Result<(int, int)>.Success((cost, refundAmount));
     }
 
     public async Task<Result> ConfirmRefundAsync(ulong userId)
@@ -919,8 +925,9 @@ public class BlackjackService : IBlackjackService
         if (player.Diamonds < cost) return Result.Failure("Недостаточно алмазов.");
 
         player.Diamonds -= cost;
-        player.Balance += (int)player.LastLostBet;
+        player.Balance += (int)(player.LastLostBet / 2); // Возвращаем 50% на баланс
         player.IsLastLossRewinded = true;
+
         await _playerRepo.UpdateAsync(player);
         return Result.Success();
     }
