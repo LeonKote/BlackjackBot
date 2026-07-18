@@ -1,41 +1,37 @@
 ﻿using BlackjackBot.Domain.Entities;
 using BlackjackBot.Domain.Interfaces;
 using BlackjackBot.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace BlackjackBot.Infrastructure.Repositories;
 
 public class GameHistoryRepository : IGameHistoryRepository
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly AppDbContext _dbContext;
 
-    public GameHistoryRepository(IDbContextFactory<AppDbContext> dbFactory)
+    public GameHistoryRepository(AppDbContext dbContext)
     {
-        _dbFactory = dbFactory;
+        _dbContext = dbContext;
     }
 
     public async Task<GameHistory> CreateAsync(GameHistory history)
     {
-        using var db = _dbFactory.CreateDbContext();
-        db.GameHistories.Add(history);
-        await db.SaveChangesAsync();
+        _dbContext.GameHistories.Add(history);
+        await _dbContext.SaveChangesAsync();
         return history;
     }
 
     public async Task UpdateToCompletedAsync(long id)
     {
-        using var db = _dbFactory.CreateDbContext();
-        var history = await db.GameHistories.FindAsync(id);
+        var history = await _dbContext.GameHistories.FindAsync(id);
         if (history != null)
         {
             history.IsCompleted = true;
-            await db.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync();
         }
     }
 
     public async Task<GameHistory?> GetByIdAsync(long id)
     {
-        using var db = _dbFactory.CreateDbContext();
-        return await db.GameHistories.FindAsync(id);
+        return await _dbContext.GameHistories.FindAsync(id);
     }
 }

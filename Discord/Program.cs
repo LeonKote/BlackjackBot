@@ -1,12 +1,5 @@
-﻿using BlackjackBot.Application.Interfaces;
-using BlackjackBot.Application.Services;
-using BlackjackBot.Discord.Services;
-using BlackjackBot.Domain.Interfaces;
-using BlackjackBot.Infrastructure.Data;
-using BlackjackBot.Infrastructure.Repositories;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using BlackjackBot.Application;
+using BlackjackBot.Infrastructure;
 using Microsoft.Extensions.Hosting;
 using NetCord;
 using NetCord.Gateway;
@@ -21,18 +14,9 @@ using NetCord.Services.ComponentInteractions;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Регистрация Инфраструктуры
-var connString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContextFactory<AppDbContext>(opt => opt.UseNpgsql(connString));
-builder.Services.AddSingleton<IPlayerRepository, PlayerRepository>();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
-// Регистрация Приложения
-builder.Services.AddSingleton<IGameSessionManager, GameSessionManager>();
-builder.Services.AddSingleton<IBlackjackService, BlackjackService>();
-builder.Services.AddSingleton<ChannelValidator>();
-builder.Services.AddSingleton<IGameHistoryRepository, GameHistoryRepository>();
-
-// Регистрация Представления (Discord)
 builder.Services
      .AddDiscordGateway(options =>
      {
@@ -44,9 +28,7 @@ builder.Services
 
 var host = builder.Build();
 
-// Авто-миграции
-using (var scope = host.Services.CreateScope())
-    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+await host.Services.ApplyDatabaseMigrationsAsync();
 
 host.AddModules(typeof(Program).Assembly);
 await host.RunAsync();

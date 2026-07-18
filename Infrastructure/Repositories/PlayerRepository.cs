@@ -7,38 +7,35 @@ namespace BlackjackBot.Infrastructure.Repositories;
 
 public class PlayerRepository : IPlayerRepository
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly AppDbContext _dbContext;
 
-    public PlayerRepository(IDbContextFactory<AppDbContext> dbFactory)
+    public PlayerRepository(AppDbContext dbContext)
     {
-        _dbFactory = dbFactory;
+        _dbContext = dbContext;
     }
 
     public async Task<Player> GetOrCreateAsync(ulong id)
     {
-        using var db = _dbFactory.CreateDbContext();
-        var player = await db.Players.FindAsync(id);
+        var player = await _dbContext.Players.FindAsync(id);
         if (player is null)
         {
             player = new Player { Id = id, Balance = 2500, LastHourly = DateTimeOffset.MinValue };
-            db.Players.Add(player);
-            await db.SaveChangesAsync();
+            _dbContext.Players.Add(player);
+            await _dbContext.SaveChangesAsync();
         }
         return player;
     }
 
     public async Task UpdateAsync(Player player)
     {
-        using var db = _dbFactory.CreateDbContext();
-        db.Players.Update(player);
-        await db.SaveChangesAsync();
+        _dbContext.Players.Update(player);
+        await _dbContext.SaveChangesAsync();
     }
 
     public async Task<List<Player>> GetTopPlayersAsync(int count = 10)
     {
-        using var db = _dbFactory.CreateDbContext();
         // Сортируем по убыванию баланса и берем первые N записей
-        return await db.Players
+        return await _dbContext.Players
             .OrderByDescending(p => p.Balance)
             .Take(count)
             .ToListAsync();
